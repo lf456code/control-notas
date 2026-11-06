@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Control de notas, Colegio Bilingüe Campo Real</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0e4f4b;--teal:#14706a;--mint:#e3f1ef;--paper:#fbfdfc;--ink:#14282a;--mut:#58706e;--line:#cfe0dd;--amber:#d99a1e;--red:#b42318;--ok:#0a7a4b}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 Figtree,"Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+h1,h2,h3{margin:0 0 .4rem;line-height:1.2}
+h2{font-size:1.4rem}h3{font-size:1.15rem}
+.mut{color:var(--mut)}.err{color:var(--red);min-height:1.4em}
+/* Encabezado con el corte diagonal de las boletas */
+header.top{position:relative;display:flex;align-items:center;gap:1rem;padding:.8rem 1.5rem;background:var(--deep);color:#fff;margin-bottom:1.3rem}
+header.top::after{content:"";position:absolute;left:0;right:0;top:100%;height:1.3rem;background:var(--deep);clip-path:polygon(0 0,100% 0,0 100%)}
+.tit{display:grid;line-height:1.2}.tit small{opacity:.8}
+.user{margin-left:auto;display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;justify-content:flex-end}
+.user em{font-style:normal;background:rgba(255,255,255,.16);border-radius:99px;padding:.1rem .7rem;font-size:.85rem}
+.logo{width:2.7rem;height:2.7rem;border-radius:50%;background:#fff;object-fit:contain;flex:none}
+.logo.ph{display:grid;place-items:center;color:var(--deep);font-weight:800}
+.logo.grande{width:4.6rem;height:4.6rem;margin:0 auto 1rem;display:block}
+.logo.grande.ph{display:grid;font-size:1.4rem;background:var(--mint)}
+.wrap{display:grid;grid-template-columns:13rem 1fr;gap:2rem;max-width:72rem;margin:0 auto;padding:1.5rem}
+nav{display:flex;flex-direction:column;gap:.15rem;align-self:start}
+nav button{text-align:left;border:0;border-left:3px solid transparent;background:none;padding:.55rem .8rem;cursor:pointer;border-radius:0 8px 8px 0}
+nav button:hover:not(:disabled){background:var(--mint)}
+nav button.on{border-left-color:var(--teal);background:var(--mint);font-weight:600}
+nav button:disabled{color:var(--mut);cursor:default}
+nav i{font-style:normal;font-size:.72rem;border:1px solid var(--line);border-radius:99px;padding:0 .5em;margin-left:.3em}
+.panel{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1.25rem;margin-bottom:1.2rem}
+.sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:1rem;margin-top:.8rem}
+label{display:grid;gap:.3rem;font-weight:600;font-size:.92rem}
+select,input[type=email],input[type=password],input.busca{padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+input.busca{margin:.7rem 0}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-weight:600;color:var(--mut);border-bottom:2px solid var(--deep);padding:.4rem .6rem;white-space:nowrap}
+td{padding:.3rem .6rem}
+tbody tr:nth-child(even) td{background:#f1f6f5}
+input.nota{width:7.5rem;text-align:center;border:1px solid var(--line);border-radius:6px;padding:.35rem;font-variant-numeric:tabular-nums;background:#fff}
+input.nota.r1{background:#c2cac9}input.nota.r2{background:#e2e7e6}
+input.nota.malo{outline:2px solid var(--red)}
+input.nota:disabled{background:#eef2f1;color:var(--mut)}
+.btn{background:var(--deep);color:#fff;border:1px solid var(--deep);padding:.6rem 1.1rem;border-radius:8px;font-weight:600;cursor:pointer}
+.btn.sec{background:#fff;color:var(--deep)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.pie{margin-top:1rem}
+.tag{border-radius:99px;padding:.1rem .7rem;font-size:.85rem;font-weight:600}
+.tag.ok{background:#d8f1e4;color:var(--ok)}.tag.mal{background:#fbe0dd;color:var(--red)}
+.aviso{background:#fbeccb;border-radius:8px;padding:.6rem .9rem;margin:0 0 .8rem}
+.login{min-height:100vh;display:grid;place-items:center;background:var(--deep);padding:1rem}
+.login form{width:min(24rem,100%);display:grid;gap:.9rem;text-align:center;background:#fff;border-radius:12px;padding:2rem 1.6rem}
+.login label{text-align:left}
+#toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
+#toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
+@media(max-width:760px){
+  .wrap{grid-template-columns:1fr;gap:1rem;padding:1rem}
+  nav{flex-direction:row;overflow-x:auto}
+  nav button{border-left:0;border-bottom:3px solid transparent;white-space:nowrap;border-radius:8px 8px 0 0}
+  nav button.on{border-bottom-color:var(--teal)}
+  header.top{padding:.7rem 1rem}
+}
+@media(prefers-reduced-motion:reduce){#toast{transition:none}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast" role="status"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+/* ===== CONFIGURACIÓN: lo único que se edita ===== */
+const CONFIG = {
+  SUPABASE_URL: 'https://tplrhlwbanofefojwbib.supabase.co',
+  SUPABASE_KEY: 'sb_publishable_f_E2Dq5PBhXWETmcC-1qfQ_KgtHZhJM',
+  COLEGIO: 'Colegio Bilingüe Campo Real',
+  LOGO: 'logo.png'   // sube tu logo con este nombre junto a este archivo
+};
+/* ================================================ */
+
+const ROLES = {administrador:'Administrador',director:'Director',coordinador:'Coordinador',subcoordinador:'Subcoordinador',docente:'Docente',caja:'Caja'};
+const DIR = ['administrador','director','coordinador'];
+const MODULOS = [
+  {id:'notas',n:'Notas',r:[...DIR,'subcoordinador','docente'],f:()=>vistaNotas()},
+  {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
+  {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
+  {id:'boletas',n:'Boletas',r:DIR},
+  {id:'comentarios',n:'Comentarios',r:DIR},
+  {id:'importar',n:'Importar datos',r:['administrador']},
+  {id:'usuarios',n:'Usuarios',r:['administrador']},
+  {id:'bitacora',n:'Bitácora',r:['administrador','director']}
+];
+
+const $ = (s,e=document) => e.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let sb, perfil, anio;
+
+function toast(msg, tipo='info'){
+  const t = $('#toast'); t.textContent = msg; t.className = 'show ' + tipo;
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.className = '', 4500);
+}
+function traducir(e){
+  const m = (e && e.message) || String(e);
+  if (/Invalid login/i.test(m)) return 'Correo o contraseña incorrectos.';
+  if (/row-level security|permission denied/i.test(m)) return 'No tienes permiso para esta acción. Si es una nota, revisa si el periodo está cerrado.';
+  if (/duplicate key/i.test(m)) return 'Ese dato ya existe.';
+  if (/Failed to fetch|NetworkError/i.test(m)) return 'No hay conexión con el servidor. Revisa tu internet.';
+  return m;
+}
+function logoFalla(i){ const s = document.createElement('span'); s.className = i.className + ' ph'; s.textContent = 'CR'; i.replaceWith(s); }
+const logo = (c='') => `<img class="logo ${c}" src="${esc(CONFIG.LOGO)}" alt="" onerror="logoFalla(this)">`;
+const clase = v => { const n = parseFloat(v); return isNaN(n) ? '' : n < 60 ? 'r1' : n < 70 ? 'r2' : ''; };
+function interpretar(r, escala){
+  if (/^[A-D]$/.test(r)) return escala === 'numerica' ? null : {valor_num:null, valor_lit:r};
+  if (/^\d{1,3}(\.\d{1,2})?$/.test(r)){ const n = parseFloat(r); return (n > 100 || escala === 'literal') ? null : {valor_num:n, valor_lit:null}; }
+  return null;
+}
+
+/* ---------- Inicio ---------- */
+async function iniciar(){
+  if (!CONFIG.SUPABASE_URL.startsWith('https://')){
+    $('#app').innerHTML = '<div class="login"><div class="panel"><h2>Falta la configuración</h2><p>Abre el archivo index.html y reemplaza la URL y la clave pública de Supabase en la sección CONFIGURACIÓN.</p></div></div>';
+    return;
+  }
+  sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  const {data:{session}} = await sb.auth.getSession();
+  session ? entrar(session.user) : vistaLogin();
+}
+
+function vistaLogin(msg=''){
+  $('#app').innerHTML = `<div class="login"><form id="f">${logo('grande')}<h1>${esc(CONFIG.COLEGIO)}</h1><p class="mut">Sistema de control de notas</p>
+    <label>Correo<input type="email" id="em" required autocomplete="username"></label>
+    <label>Contraseña<input type="password" id="pw" required autocomplete="current-password"></label>
+    <button class="btn" id="bt">Ingresar</button><p class="err" id="er">${esc(msg)}</p></form></div>`;
+  $('#f').onsubmit = async e => {
+    e.preventDefault(); $('#bt').disabled = true; $('#er').textContent = '';
+    const {data, error} = await sb.auth.signInWithPassword({email:$('#em').value.trim(), password:$('#pw').value});
+    if (error){ $('#er').textContent = traducir(error); $('#bt').disabled = false; return; }
+    entrar(data.user);
+  };
+}
+
+async function entrar(user){
+  const {data:p} = await sb.from('perfiles').select('*').eq('id', user.id).maybeSingle();
+  if (!p || !p.activo){ await sb.auth.signOut(); return vistaLogin('Tu usuario no tiene un perfil activo. Habla con el administrador.'); }
+  perfil = p;
+  const {data:a} = await sb.from('anios_escolares').select('*').eq('activo', true).maybeSingle();
+  anio = a;
+  vistaApp();
+}
+
+function vistaApp(){
+  const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''}</small></div>
+    <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
+    <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
+  $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => ir(b.dataset.m));
+  const primero = mods.find(m => m.f);
+  primero ? ir(primero.id) : $('#main').innerHTML = '<p>No hay módulos disponibles para tu rol.</p>';
+}
+function ir(id){
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.m === id));
+  MODULOS.find(m => m.id === id).f();
+}
+
+/* ---------- Notas ---------- */
+async function vistaNotas(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo. El administrador debe activarlo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const doc = perfil.rol === 'docente';
+  const rs = await Promise.all([
+    sb.from('grados').select('*').order('orden'),
+    sb.from('secciones').select('*'),
+    sb.from('grupos').select('*').eq('anio_id', anio.id),
+    sb.from('asignaturas').select('id,grado_id,nombre,orden,escala').eq('es_calculada', false).order('orden'),
+    doc ? sb.from('asignaciones_docente').select('grupo_id,asignatura_id') : Promise.resolve({data:[]})
+  ]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp, as, ad] = rs.map(r => r.data);
+  const pares = new Set(ad.map(x => x.grupo_id + ':' + x.asignatura_id));
+  const gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  let grupos = gp.map(x => ({...x, grado:gr[x.grado_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id]}))
+    .sort((a, b) => a.grado.orden - b.grado.orden || a.nom.localeCompare(b.nom));
+  const asigDe = x => as.filter(a => a.grado_id === x.grado_id && (!doc || pares.has(x.id + ':' + a.id)));
+  if (doc) grupos = grupos.filter(x => asigDe(x).length);
+  if (!grupos.length){ M.innerHTML = '<div class="panel"><p>' + (doc ? 'Todavía no tienes materias asignadas. Pide al administrador que las asigne.' : 'Aún no hay grupos creados para este año.') + '</p></div>'; return; }
+  M.innerHTML = `<div class="panel"><h2>Ingreso de notas</h2><div class="sel">
+    <label>Grado y sección<select id="sg"><option value="">Elegir…</option>${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label>
+    <label>Asignatura<select id="sa" disabled></select></label>
+    <label>Periodo<select id="su" disabled></select></label></div></div><div id="tabla"></div>`;
+  const val = id => $('#' + id).value, grupoSel = () => grupos.find(y => String(y.id) === val('sg'));
+  $('#sg').onchange = () => {
+    const x = grupoSel();
+    $('#sa').innerHTML = x ? '<option value="">Elegir…</option>' + asigDe(x).map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('') : '';
+    $('#su').innerHTML = x ? x.grado.etiquetas_periodo.map((e, i) => `<option value="${i + 1}">${esc(e)}</option>`).join('') : '';
+    $('#sa').disabled = $('#su').disabled = !x; $('#tabla').innerHTML = '';
+  };
+  $('#sa').onchange = $('#su').onchange = () => {
+    const x = grupoSel(), a = as.find(y => String(y.id) === val('sa'));
+    if (x && a) cargarTabla(x, a, +val('su'));
+  };
+}
+
+async function cargarTabla(grupo, asig, unidad){
+  const T = $('#tabla'); T.innerHTML = '<p class="mut">Cargando alumnos…</p>';
+  const {data:ins, error:e1} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', grupo.id);
+  if (e1){ T.innerHTML = `<p class="err">${esc(traducir(e1))}</p>`; return; }
+  if (!ins.length){ T.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
+  const [al, nt, es] = await Promise.all([
+    sb.from('alumnos').select('id,clave,nombres,apellidos').in('id', ins.map(i => i.alumno_id)),
+    sb.from('notas').select('id,inscripcion_id,valor_num,valor_lit').eq('asignatura_id', asig.id).eq('unidad', unidad).in('inscripcion_id', ins.map(i => i.id)),
+    sb.from('unidades_estado').select('abierta').eq('anio_id', anio.id).eq('grado_id', grupo.grado_id).eq('unidad', unidad).maybeSingle()
+  ]);
+  const fallo = [al, nt, es].find(r => r.error);
+  if (fallo){ T.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const dir = DIR.includes(perfil.rol), cerrada = !!es.data && es.data.abierta === false, bloqueada = cerrada && !dir;
+  const nm = Object.fromEntries(nt.data.map(n => [n.inscripcion_id, n]));
+  const ali = Object.fromEntries(al.data.map(a => [a.id, a]));
+  const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a)
+    .sort((x, y) => (x.a.apellidos + x.a.nombres).localeCompare(y.a.apellidos + y.a.nombres));
+  const ph = {numerica:'0 a 100', literal:'A a D', mixta:'0-100 o A-D'}[asig.escala];
+  T.innerHTML = `<div class="panel">${cerrada ? `<p class="aviso">Este periodo está cerrado. ${dir ? 'Como dirección todavía puedes corregir.' : 'Ya no se pueden ingresar notas.'}</p>` : ''}
+    <h3>${esc(asig.nombre)}</h3><p class="mut">${esc(grupo.nom)}, ${esc(grupo.grado.etiquetas_periodo[unidad - 1])}</p>
+    <div class="scroll"><table><thead><tr><th>Clave</th><th>Alumno</th><th>Nota (${ph})</th></tr></thead><tbody>
+    ${filas.map(({i, a}) => {
+      const n = nm[i.id], v = n ? (n.valor_num !== null ? String(+n.valor_num) : n.valor_lit) : '';
+      const lock = bloqueada || (perfil.rol === 'docente' && !!n);
+      return `<tr><td>${esc(a.clave)}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td><td><input class="nota ${clase(v)}" data-i="${i.id}" ${n ? `data-n="${n.id}"` : ''} data-o="${esc(v)}" value="${esc(v)}" placeholder="${ph}" aria-label="Nota de ${esc(a.nombres)} ${esc(a.apellidos)}" ${lock ? 'disabled' : ''}></td></tr>`;
+    }).join('')}</tbody></table></div>
+    ${bloqueada ? '' : '<button class="btn pie" id="gd">Guardar notas</button>'}</div>`;
+  T.querySelectorAll('input.nota').forEach(el => el.oninput = () => { el.className = 'nota ' + clase(el.value.replace(',', '.')); });
+  const gd = $('#gd'); if (!gd) return;
+  gd.onclick = async () => {
+    const nuevos = [], cambios = []; let malos = 0;
+    T.querySelectorAll('input.nota:not([disabled])').forEach(el => {
+      const raw = el.value.trim().toUpperCase().replace(',', '.');
+      if (raw === '' || raw === el.dataset.o.toUpperCase()) return;
+      const p = interpretar(raw, asig.escala);
+      if (!p){ el.classList.add('malo'); malos++; return; }
+      el.classList.remove('malo');
+      el.dataset.n ? cambios.push({id:el.dataset.n, ...p}) : nuevos.push({inscripcion_id:el.dataset.i, asignatura_id:asig.id, unidad, ...p});
+    });
+    if (malos) return toast(`Hay ${malos} valor(es) no válidos, marcados en rojo. Usa ${ph}.`, 'mal');
+    if (!nuevos.length && !cambios.length) return toast('No hay cambios por guardar.');
+    gd.disabled = true; let fallos = 0;
+    if (nuevos.length){
+      const {error} = await sb.from('notas').insert(nuevos);
+      if (error){ toast(traducir(error), 'mal'); gd.disabled = false; return; }
+    }
+    for (const c of cambios){
+      const {id, ...v} = c;
+      const {data, error} = await sb.from('notas').update(v).eq('id', id).select('id');
+      if (error || !data.length) fallos++;
+    }
+    const ok = nuevos.length + cambios.length - fallos;
+    toast(fallos ? `Se guardaron ${ok} nota(s); ${fallos} no se pudieron modificar.` : `Guardadas ${ok} nota(s).`, fallos ? 'mal' : 'ok');
+    cargarTabla(grupo, asig, unidad);
+  };
+}
+
+/* ---------- Solvencia ---------- */
+async function vistaSolvencia(){
+  const M = $('#main'); M.innerHTML = '<p class="mut">Cargando…</p>';
+  const vacio = Promise.resolve({data:[]});
+  const rs = await Promise.all([
+    sb.from('grados').select('id,nombre'), sb.from('secciones').select('id,nombre'),
+    anio ? sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id) : vacio,
+    anio ? sb.from('inscripciones').select('alumno_id,grupo_id').eq('anio_id', anio.id) : vacio,
+    sb.from('alumnos').select('id,clave,nombres,apellidos,solvente').eq('activo', true).order('apellidos')
+  ]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp, ins, al] = rs.map(r => r.data);
+  const gn = Object.fromEntries(g.map(x => [x.id, x.nombre])), sn = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const gpn = Object.fromEntries(gp.map(x => [x.id, gn[x.grado_id] + ' ' + sn[x.seccion_id]]));
+  const gal = Object.fromEntries(ins.map(x => [x.alumno_id, gpn[x.grupo_id]]));
+  M.innerHTML = '<div class="panel"><h2>Solvencia de alumnos</h2><p class="mut">Un alumno insolvente no puede recibir su boleta.</p><input id="bq" class="busca" placeholder="Buscar por nombre, apellido o clave" aria-label="Buscar alumno"><div id="lista"></div></div>';
+  const pintar = () => {
+    const q = $('#bq').value.trim().toLowerCase();
+    const f = al.filter(a => !q || (a.clave + ' ' + a.nombres + ' ' + a.apellidos).toLowerCase().includes(q));
+    $('#lista').innerHTML = `<p class="mut">${f.length} alumno(s)${f.length > 150 ? ', se muestran 150: usa el buscador' : ''}</p><div class="scroll"><table><thead><tr><th>Clave</th><th>Alumno</th><th>Grado</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${f.slice(0, 150).map(a => `<tr><td>${esc(a.clave)}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td><td>${esc(gal[a.id] || 'Sin inscripción')}</td><td><span class="tag ${a.solvente ? 'ok' : 'mal'}">${a.solvente ? 'Solvente' : 'Insolvente'}</span></td><td><button class="btn sec" data-a="${a.id}">${a.solvente ? 'Marcar insolvente' : 'Marcar solvente'}</button></td></tr>`).join('')}</tbody></table></div>`;
+    $('#lista').querySelectorAll('button[data-a]').forEach(b => b.onclick = async () => {
+      const a = al.find(x => x.id === b.dataset.a); b.disabled = true;
+      const {error} = await sb.rpc('marcar_solvencia', {p_alumno:a.id, p_solvente:!a.solvente});
+      if (error){ toast(traducir(error), 'mal'); b.disabled = false; return; }
+      a.solvente = !a.solvente; pintar();
+    });
+  };
+  $('#bq').oninput = pintar; pintar();
+}
+
+iniciar();
+</script>
+</body>
+</html>
