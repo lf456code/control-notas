@@ -91,6 +91,7 @@ const ROLES = {administrador:'Administrador',director:'Director',coordinador:'Co
 const DIR = ['administrador','director','coordinador'];
 const MODULOS = [
   {id:'notas',n:'Notas',r:[...DIR,'subcoordinador','docente'],f:()=>vistaNotas()},
+  {id:'unidades',n:'Unidades',r:DIR,f:()=>vistaUnidades()},
   {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
   {id:'boletas',n:'Boletas',r:DIR},
@@ -344,6 +345,34 @@ async function vistaSolvencia(){
     });
   };
   $('#bq').oninput = pintar; pintar();
+}
+
+/* ---------- Unidades (abrir y cerrar) ---------- */
+async function vistaUnidades(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const [g, u] = await Promise.all([
+    sb.from('grados').select('id,nombre,orden').order('orden'),
+    sb.from('unidades_estado').select('grado_id,unidad,abierta').eq('anio_id', anio.id)
+  ]);
+  const fallo = [g, u].find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const est = Object.fromEntries(u.data.map(x => [x.grado_id + ':' + x.unidad, x.abierta]));
+  const U = [1, 2, 3, 4];
+  M.innerHTML = `<div class="panel"><h2>Abrir y cerrar unidades</h2><p class="mut">Con la unidad abierta, los maestros capturan y corrigen notas. Al cerrarla, solo la dirección puede cambiarlas.</p>
+    <div class="scroll"><table><thead><tr><th>Grado</th>${U.map(k => `<th>Unidad ${k}</th>`).join('')}</tr></thead><tbody>
+    <tr><td><b>Todos los grados</b></td>${U.map(k => `<td><button class="btn sec" data-k="${k}" data-a="0">Cerrar</button> <button class="btn sec" data-k="${k}" data-a="1">Abrir</button></td>`).join('')}</tr>
+    ${g.data.map(x => `<tr><td>${esc(x.nombre)}</td>${U.map(k => { const ab = est[x.id + ':' + k] !== false; return `<td><button class="tag ${ab ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-g="${x.id}" data-k="${k}" data-a="${ab ? 0 : 1}" title="Clic para ${ab ? 'cerrar' : 'abrir'}">${ab ? 'Abierta' : 'Cerrada'}</button></td>`; }).join('')}</tr>`).join('')}
+    </tbody></table></div></div>`;
+  M.querySelectorAll('button[data-k]').forEach(b => b.onclick = async () => {
+    const k = +b.dataset.k, abrir = b.dataset.a === '1', todos = b.dataset.g === undefined;
+    if (!confirm(`¿${abrir ? 'Abrir' : 'Cerrar'} la Unidad ${k}${todos ? ' en TODOS los grados' : ''}?`)) return;
+    const ids = todos ? g.data.map(x => x.id) : [+b.dataset.g];
+    const {error} = await sb.from('unidades_estado').upsert(ids.map(id => ({anio_id:anio.id, grado_id:id, unidad:k, abierta:abrir})));
+    if (error) return toast(traducir(error), 'mal');
+    toast(abrir ? 'Unidad abierta.' : 'Unidad cerrada.', 'ok'); vistaUnidades();
+  });
 }
 
 iniciar();
