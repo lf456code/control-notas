@@ -58,6 +58,11 @@ input.nota:disabled{background:#eef2f1;color:var(--mut)}
 .login label{text-align:left}
 #toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
 #toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
+table.n input.nota{width:4.8rem}
+th.ev{cursor:pointer}th small{display:block;font-weight:400}
+td.t{font-weight:800;text-align:center}td.z{text-align:center}
+.barra{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
+table.est th,table.est td{text-align:center}table.est td{font-size:1.2rem;font-weight:600}
 @media(max-width:760px){
   .wrap{grid-template-columns:1fr;gap:1rem;padding:1rem}
   nav{flex-direction:row;overflow-x:auto}
@@ -213,56 +218,100 @@ async function cargarTabla(grupo, asig, unidad){
   const {data:ins, error:e1} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', grupo.id);
   if (e1){ T.innerHTML = `<p class="err">${esc(traducir(e1))}</p>`; return; }
   if (!ins.length){ T.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
-  const [al, nt, es] = await Promise.all([
+  const ids = ins.map(i => i.id);
+  const [al, ev, pm, es, nv] = await Promise.all([
     sb.from('alumnos').select('id,clave,nombres,apellidos').in('id', ins.map(i => i.alumno_id)),
-    sb.from('notas').select('id,inscripcion_id,valor_num,valor_lit').eq('asignatura_id', asig.id).eq('unidad', unidad).in('inscripcion_id', ins.map(i => i.id)),
-    sb.from('unidades_estado').select('abierta').eq('anio_id', anio.id).eq('grado_id', grupo.grado_id).eq('unidad', unidad).maybeSingle()
+    sb.from('evaluaciones').select('*').eq('grupo_id', grupo.id).eq('asignatura_id', asig.id).eq('unidad', unidad),
+    sb.from('pma').select('inscripcion_id,puntos').eq('asignatura_id', asig.id).eq('unidad', unidad).in('inscripcion_id', ids),
+    sb.from('unidades_estado').select('abierta').eq('anio_id', anio.id).eq('grado_id', grupo.grado_id).eq('unidad', unidad).maybeSingle(),
+    sb.from('niveles').select('*').eq('id', grupo.grado.nivel_id).maybeSingle()
   ]);
-  const fallo = [al, nt, es].find(r => r.error);
+  const fallo = [al, ev, pm, es, nv].find(r => r.error);
   if (fallo){ T.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  if (!nv.data){ T.innerHTML = '<div class="panel"><p class="aviso">Este grado no tiene nivel asignado. Avisa al administrador.</p></div>'; return; }
+  const niv = nv.data, ORD = {corto:0, actividad:1, examen:2}, NOM = {corto:'Corto', actividad:'Actividad', examen:'Examen'};
+  const evs = ev.data.sort((a, b) => ORD[a.tipo] - ORD[b.tipo] || a.numero - b.numero);
+  const {data:cl, error:e2} = evs.length ? await sb.from('calificaciones').select('evaluacion_id,inscripcion_id,valor').in('evaluacion_id', evs.map(e => e.id)) : {data:[]};
+  if (e2){ T.innerHTML = `<p class="err">${esc(traducir(e2))}</p>`; return; }
+  const C = Object.fromEntries(cl.map(c => [c.evaluacion_id + ':' + c.inscripcion_id, +c.valor]));
+  const P = Object.fromEntries(pm.data.map(p => [p.inscripcion_id, +p.puntos]));
   const dir = DIR.includes(perfil.rol), cerrada = !!es.data && es.data.abierta === false, bloqueada = cerrada && !dir;
-  const nm = Object.fromEntries(nt.data.map(n => [n.inscripcion_id, n]));
   const ali = Object.fromEntries(al.data.map(a => [a.id, a]));
   const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a)
     .sort((x, y) => (x.a.apellidos + x.a.nombres).localeCompare(y.a.apellidos + y.a.nombres));
-  const ph = {numerica:'0 a 100', literal:'A a D', mixta:'0-100 o A-D'}[asig.escala];
-  T.innerHTML = `<div class="panel">${cerrada ? `<p class="aviso">Este periodo está cerrado. ${dir ? 'Como dirección todavía puedes corregir.' : 'Ya no se pueden ingresar notas.'}</p>` : ''}
-    <h3>${esc(asig.nombre)}</h3><p class="mut">${esc(grupo.nom)}, ${esc(grupo.grado.etiquetas_periodo[unidad - 1])}</p>
-    <div class="scroll"><table><thead><tr><th>Clave</th><th>Alumno</th><th>Nota (${ph})</th></tr></thead><tbody>
-    ${filas.map(({i, a}) => {
-      const n = nm[i.id], v = n ? (n.valor_num !== null ? String(+n.valor_num) : n.valor_lit) : '';
-      const lock = bloqueada || (perfil.rol === 'docente' && !!n);
-      return `<tr><td>${esc(a.clave)}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td><td><input class="nota ${clase(v)}" data-i="${i.id}" ${n ? `data-n="${n.id}"` : ''} data-o="${esc(v)}" value="${esc(v)}" placeholder="${ph}" aria-label="Nota de ${esc(a.nombres)} ${esc(a.apellidos)}" ${lock ? 'disabled' : ''}></td></tr>`;
-    }).join('')}</tbody></table></div>
-    ${bloqueada ? '' : '<button class="btn pie" id="gd">Guardar notas</button>'}</div>`;
-  T.querySelectorAll('input.nota').forEach(el => el.oninput = () => { el.className = 'nota ' + clase(el.value.replace(',', '.')); });
-  const gd = $('#gd'); if (!gd) return;
-  gd.onclick = async () => {
-    const nuevos = [], cambios = []; let malos = 0;
-    T.querySelectorAll('input.nota:not([disabled])').forEach(el => {
-      const raw = el.value.trim().toUpperCase().replace(',', '.');
-      if (raw === '' || raw === el.dataset.o.toUpperCase()) return;
-      const p = interpretar(raw, asig.escala);
-      if (!p){ el.classList.add('malo'); malos++; return; }
-      el.classList.remove('malo');
-      el.dataset.n ? cambios.push({id:el.dataset.n, ...p}) : nuevos.push({inscripcion_id:el.dataset.i, asignatura_id:asig.id, unidad, ...p});
+  const dis = bloqueada ? 'disabled' : '', nombreEv = e => NOM[e.tipo] + (e.tipo === 'examen' ? '' : ' ' + e.numero);
+  const rangos = ['90-100', '80-89', '70-79', '60-69', '50-59', '0-49'];
+  T.innerHTML = `<div class="panel">${cerrada ? `<p class="aviso">Esta unidad está cerrada. ${dir ? 'Como dirección todavía puedes corregir.' : 'Ya no se pueden cambiar notas, solo verlas.'}</p>` : ''}
+    <h3>${esc(asig.nombre)}</h3><p class="mut">${esc(grupo.nom)}, ${esc(grupo.grado.etiquetas_periodo[unidad - 1])}. ${esc(niv.nombre)}: cortos ${niv.peso_cortos}%, actividades ${niv.peso_actividades}%, examen ${niv.peso_examen} pts, PMA hasta ${niv.pma_max}.</p>
+    ${bloqueada ? '' : `<div class="barra">${niv.peso_cortos > 0 ? '<button class="btn sec" data-t="corto">+ Corto</button>' : ''}<button class="btn sec" data-t="actividad">+ Actividad</button>${evs.some(e => e.tipo === 'examen') ? '' : '<button class="btn sec" data-t="examen">+ Examen</button>'}</div>`}
+    ${evs.length ? '' : '<p class="aviso">Aún no hay columnas. Agrégalas con los botones y escribe las notas; el total se calcula solo.</p>'}
+    <div class="scroll"><table class="n"><thead><tr><th>Clave</th><th>Alumno</th>${evs.map(e => `<th class="ev" data-e="${e.id}" title="Clic para cambiar el sobre cuánto o borrar">${nombreEv(e)}<small>/${+e.valor_maximo}</small></th>`).join('')}<th>Zona<small>/40</small></th><th>PMA<small>/${niv.pma_max}</small></th><th>Total<small>/100</small></th></tr></thead><tbody>
+    ${filas.map(({i, a}) => `<tr data-i="${i.id}"><td>${esc(a.clave)}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td>${evs.map(e => { const v = C[e.id + ':' + i.id] ?? ''; return `<td><input class="nota" data-e="${e.id}" data-i="${i.id}" data-o="${v}" value="${v}" inputmode="decimal" aria-label="${esc(nombreEv(e))}, ${esc(a.nombres)} ${esc(a.apellidos)}" ${dis}></td>`; }).join('')}<td class="z">0</td><td><input class="nota pma" data-i="${i.id}" data-o="${P[i.id] ?? ''}" value="${P[i.id] ?? ''}" inputmode="decimal" aria-label="PMA, ${esc(a.nombres)} ${esc(a.apellidos)}" ${dis}></td><td class="t">0</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="panel"><h3>Estadística</h3><div class="scroll"><table class="est"><thead><tr>${rangos.map(r => `<th>${r}</th>`).join('')}</tr></thead><tbody><tr>${rangos.map((r, k) => `<td id="e${k}">0</td>`).join('')}</tr></tbody></table></div></div>`;
+
+  const refrescar = async () => {
+    const {data, error} = await sb.rpc('resumen_grupo', {p_grupo:grupo.id, p_asignatura:asig.id, p_unidad:unidad});
+    if (error) return toast(traducir(error), 'mal');
+    const cuenta = [0, 0, 0, 0, 0, 0];
+    data.forEach(r => {
+      const tr = T.querySelector(`tr[data-i="${r.inscripcion_id}"]`); if (!tr) return;
+      tr.querySelector('.z').textContent = +r.zona;
+      const t = tr.querySelector('.t'); t.textContent = +r.total; t.className = 't ' + clase(r.total);
+      const n = Math.round(+r.total); cuenta[n >= 90 ? 0 : n >= 80 ? 1 : n >= 70 ? 2 : n >= 60 ? 3 : n >= 50 ? 4 : 5]++;
     });
-    if (malos) return toast(`Hay ${malos} valor(es) no válidos, marcados en rojo. Usa ${ph}.`, 'mal');
-    if (!nuevos.length && !cambios.length) return toast('No hay cambios por guardar.');
-    gd.disabled = true; let fallos = 0;
-    if (nuevos.length){
-      const {error} = await sb.from('notas').insert(nuevos);
-      if (error){ toast(traducir(error), 'mal'); gd.disabled = false; return; }
-    }
-    for (const c of cambios){
-      const {id, ...v} = c;
-      const {data, error} = await sb.from('notas').update(v).eq('id', id).select('id');
-      if (error || !data.length) fallos++;
-    }
-    const ok = nuevos.length + cambios.length - fallos;
-    toast(fallos ? `Se guardaron ${ok} nota(s); ${fallos} no se pudieron modificar.` : `Guardadas ${ok} nota(s).`, fallos ? 'mal' : 'ok');
-    cargarTabla(grupo, asig, unidad);
+    cuenta.forEach((c, k) => $('#e' + k).textContent = c);
   };
+  const guardar = async (el, max, msg, subir, borrar) => {
+    const raw = el.value.trim().replace(',', '.');
+    if (raw === el.dataset.o) return;
+    let r;
+    if (raw === ''){ r = await borrar().select(); if (!r.error && !r.data.length) r.error = {message:'row-level security'}; }
+    else {
+      if (!/^\d+(\.\d{1,2})?$/.test(raw) || +raw > max){ el.classList.add('malo'); return toast(msg, 'mal'); }
+      r = await subir(+raw);
+    }
+    if (r.error){ el.classList.add('malo'); return toast(traducir(r.error), 'mal'); }
+    el.classList.remove('malo'); el.dataset.o = raw; refrescar();
+  };
+  T.querySelectorAll('input.nota:not(.pma)').forEach(el => {
+    const e = evs.find(x => x.id === el.dataset.e), i = el.dataset.i;
+    el.onchange = () => guardar(el, +e.valor_maximo, `Escribe un número entre 0 y ${+e.valor_maximo}.`,
+      v => sb.from('calificaciones').upsert({evaluacion_id:e.id, inscripcion_id:i, valor:v}),
+      () => sb.from('calificaciones').delete().eq('evaluacion_id', e.id).eq('inscripcion_id', i));
+  });
+  T.querySelectorAll('input.pma').forEach(el => {
+    const i = el.dataset.i;
+    el.onchange = () => guardar(el, niv.pma_max, `El PMA va de 0 a ${niv.pma_max}.`,
+      v => sb.from('pma').upsert({inscripcion_id:i, asignatura_id:asig.id, unidad, puntos:v}),
+      () => sb.from('pma').delete().eq('inscripcion_id', i).eq('asignatura_id', asig.id).eq('unidad', unidad));
+  });
+  T.querySelectorAll('button[data-t]').forEach(b => b.onclick = async () => {
+    const tipo = b.dataset.t, numero = tipo === 'examen' ? 1 : Math.max(0, ...evs.filter(e => e.tipo === tipo).map(e => e.numero)) + 1;
+    const r = prompt(`${NOM[tipo]}${tipo === 'examen' ? '' : ' ' + numero}: ¿sobre cuánto se califica?`, tipo === 'examen' ? niv.peso_examen : 100);
+    if (r === null) return;
+    const max = parseFloat(r.replace(',', '.'));
+    if (!(max > 0 && max <= 9999)) return toast('Escribe un número mayor que 0.', 'mal');
+    const {error} = await sb.from('evaluaciones').insert({grupo_id:grupo.id, asignatura_id:asig.id, unidad, tipo, numero, valor_maximo:max});
+    error ? toast(traducir(error), 'mal') : cargarTabla(grupo, asig, unidad);
+  });
+  T.querySelectorAll('th.ev').forEach(th => th.onclick = async () => {
+    if (bloqueada) return;
+    const e = evs.find(x => x.id === th.dataset.e);
+    const r = prompt(`${nombreEv(e)}: nuevo "sobre cuánto" (ahora ${+e.valor_maximo}).\nPara eliminar la columna con todas sus notas escribe BORRAR.`, +e.valor_maximo);
+    if (r === null) return;
+    let res;
+    if (r.trim().toUpperCase() === 'BORRAR'){
+      if (!confirm('¿Eliminar esta columna y todas sus notas?')) return;
+      res = await sb.from('evaluaciones').delete().eq('id', e.id).select('id');
+    } else {
+      const max = parseFloat(r.replace(',', '.'));
+      if (!(max > 0 && max <= 9999)) return toast('Escribe un número mayor que 0.', 'mal');
+      res = await sb.from('evaluaciones').update({valor_maximo:max}).eq('id', e.id).select('id');
+    }
+    if (res.error || !res.data.length) return toast(res.error ? traducir(res.error) : 'No tienes permiso para este cambio.', 'mal');
+    cargarTabla(grupo, asig, unidad);
+  });
+  refrescar();
 }
 
 /* ---------- Solvencia ---------- */
