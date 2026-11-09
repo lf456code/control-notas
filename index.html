@@ -78,6 +78,7 @@ input.txt{padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;ba
 <div id="app"></div>
 <div id="toast" role="status"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 /* ===== CONFIGURACIÓN: lo único que se edita ===== */
 const CONFIG = {
@@ -97,7 +98,7 @@ const MODULOS = [
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
   {id:'boletas',n:'Boletas',r:DIR},
   {id:'comentarios',n:'Comentarios',r:DIR},
-  {id:'importar',n:'Importar datos',r:['administrador']},
+  {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
   {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
   {id:'usuarios',n:'Usuarios',r:['administrador'],f:()=>vistaUsuarios()},
   {id:'bitacora',n:'Bitácora',r:['administrador','director']}
@@ -456,6 +457,76 @@ async function vistaAsignaciones(){
     });
   };
   $('#sd').onchange = pintar;
+}
+
+/* ---------- Importar alumnos ---------- */
+const norm = t => String(t ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function vistaImportar(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = `<div class="panel"><h2>Importar alumnos</h2>
+    <p class="mut">Sube un archivo de Excel (.xlsx) o CSV con las columnas <b>Clave, Nombres, Apellidos, Grado, Sección</b>. Los alumnos se inscriben en el año ${esc(anio.nombre)}. Si la clave ya existe se actualiza el nombre; si el alumno ya está inscrito este año, no se mueve de sección. Los grupos que no existan se crean solos.</p>
+    <div class="barra"><button class="btn sec" id="pl">Descargar plantilla</button><input type="file" id="ar" accept=".xlsx,.xls,.csv"></div><div id="prev"></div></div>`;
+  const sinLector = () => typeof XLSX === 'undefined' && (toast('No se pudo cargar el lector de Excel. Revisa tu internet y recarga la página.', 'mal'), true);
+  $('#pl').onclick = () => {
+    if (sinLector()) return;
+    const ws = XLSX.utils.aoa_to_sheet([['Clave', 'Nombres', 'Apellidos', 'Grado', 'Sección'], ['2026001', 'Ana María', 'López Pérez', 'Onceavo', 'A'], ['2026002', 'Luis', 'Gómez Díaz', 'Onceavo', 'B']]);
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Alumnos'); XLSX.writeFile(wb, 'plantilla_alumnos.xlsx');
+  };
+  $('#ar').onchange = async ev => {
+    const f = ev.target.files[0]; if (!f || sinLector()) return;
+    const P = $('#prev'); P.innerHTML = '<p class="mut">Revisando el archivo…</p>';
+    const wb = XLSX.read(await f.arrayBuffer());
+    const crudo = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:''});
+    const rs = await Promise.all([sb.from('grados').select('id,nombre'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)]);
+    const fallo = rs.find(r => r.error);
+    if (fallo){ P.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+    const gr = Object.fromEntries(rs[0].data.map(x => [norm(x.nombre), x]));
+    const buenas = [], errores = [], vistas = new Set();
+    crudo.forEach((r, n) => {
+      const c = {}; Object.keys(r).forEach(k => c[norm(k)] = String(r[k]).trim());
+      const b = {clave:c.clave, nombres:c.nombres, apellidos:c.apellidos, grado:c.grado, seccion:(c.seccion || '').toUpperCase()}, lin = n + 2;
+      if (!b.clave && !b.nombres && !b.apellidos) return;
+      if (!b.clave || !b.nombres || !b.apellidos || !b.seccion) return errores.push(`Fila ${lin}: faltan datos.`);
+      if (!gr[norm(b.grado)]) return errores.push(`Fila ${lin}: grado no reconocido (${b.grado || 'vacío'}).`);
+      if (vistas.has(b.clave)) return errores.push(`Fila ${lin}: clave repetida (${b.clave}).`);
+      vistas.add(b.clave); buenas.push({...b, gid:gr[norm(b.grado)].id});
+    });
+    P.innerHTML = `<p><b>${buenas.length}</b> alumno(s) listos para importar${errores.length ? `, <b>${errores.length}</b> fila(s) con problemas` : ''}.</p>
+      ${errores.length ? `<div class="aviso">${errores.slice(0, 15).map(esc).join('<br>')}${errores.length > 15 ? '<br>…' : ''}</div>` : ''}
+      ${buenas.length ? '<button class="btn pie" id="go">Importar ahora</button>' : ''}`;
+    if (buenas.length) $('#go').onclick = () => importarAlumnos(buenas, errores.length, rs);
+  };
+}
+async function importarAlumnos(buenas, nErr, rs){
+  const go = $('#go'); go.disabled = true; go.textContent = 'Importando…';
+  try {
+    const sec = Object.fromEntries(rs[1].data.map(x => [norm(x.nombre), x.id]));
+    const nuevasSec = [...new Set(buenas.map(b => b.seccion))].filter(s => !sec[norm(s)]);
+    if (nuevasSec.length){
+      const {data, error} = await sb.from('secciones').insert(nuevasSec.map(nombre => ({nombre}))).select('id,nombre');
+      if (error) throw error; data.forEach(x => sec[norm(x.nombre)] = x.id);
+    }
+    const gp = Object.fromEntries(rs[2].data.map(x => [x.grado_id + ':' + x.seccion_id, x.id])), faltan = new Map();
+    buenas.forEach(b => { b.sid = sec[norm(b.seccion)]; const k = b.gid + ':' + b.sid; if (!gp[k]) faltan.set(k, {anio_id:anio.id, grado_id:b.gid, seccion_id:b.sid}); });
+    if (faltan.size){
+      const {data, error} = await sb.from('grupos').insert([...faltan.values()]).select('id,grado_id,seccion_id');
+      if (error) throw error; data.forEach(x => gp[x.grado_id + ':' + x.seccion_id] = x.id);
+    }
+    const ids = {};
+    for (let i = 0; i < buenas.length; i += 200){
+      const {data, error} = await sb.from('alumnos').upsert(buenas.slice(i, i + 200).map(b => ({clave:b.clave, nombres:b.nombres, apellidos:b.apellidos})), {onConflict:'clave'}).select('id,clave');
+      if (error) throw error; data.forEach(x => ids[x.clave] = x.id);
+    }
+    let nuevas = 0;
+    for (let i = 0; i < buenas.length; i += 200){
+      const lote = buenas.slice(i, i + 200).map(b => ({alumno_id:ids[b.clave], grupo_id:gp[b.gid + ':' + b.sid], anio_id:anio.id}));
+      const {data, error} = await sb.from('inscripciones').upsert(lote, {onConflict:'alumno_id,anio_id', ignoreDuplicates:true}).select('id');
+      if (error) throw error; nuevas += data.length;
+    }
+    await sb.from('importaciones').insert({usuario_id:perfil.id, tipo:'alumnos', filas_ok:buenas.length, filas_error:nErr});
+    $('#prev').innerHTML = `<p class="tag ok">Listo: ${buenas.length} alumno(s) procesados, ${nuevas} inscrito(s) nuevos en ${esc(anio.nombre)}.</p>`;
+  } catch (e){ toast(traducir(e), 'mal'); go.disabled = false; go.textContent = 'Importar ahora'; }
 }
 
 iniciar();
