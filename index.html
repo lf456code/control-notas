@@ -63,6 +63,7 @@ th.ev{cursor:pointer}th small{display:block;font-weight:400}
 td.t{font-weight:800;text-align:center}td.z{text-align:center}
 .barra{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
 table.est th,table.est td{text-align:center}table.est td{font-size:1.2rem;font-weight:600}
+input.txt{padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
 @media(max-width:760px){
   .wrap{grid-template-columns:1fr;gap:1rem;padding:1rem}
   nav{flex-direction:row;overflow-x:auto}
@@ -97,7 +98,8 @@ const MODULOS = [
   {id:'boletas',n:'Boletas',r:DIR},
   {id:'comentarios',n:'Comentarios',r:DIR},
   {id:'importar',n:'Importar datos',r:['administrador']},
-  {id:'usuarios',n:'Usuarios',r:['administrador']},
+  {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
+  {id:'usuarios',n:'Usuarios',r:['administrador'],f:()=>vistaUsuarios()},
   {id:'bitacora',n:'Bitácora',r:['administrador','director']}
 ];
 
@@ -373,6 +375,87 @@ async function vistaUnidades(){
     if (error) return toast(traducir(error), 'mal');
     toast(abrir ? 'Unidad abierta.' : 'Unidad cerrada.', 'ok'); vistaUnidades();
   });
+}
+
+/* ---------- Usuarios ---------- */
+async function vistaUsuarios(){
+  const M = $('#main'); M.innerHTML = '<p class="mut">Cargando…</p>';
+  const {data, error} = await sb.rpc('lista_usuarios');
+  if (error){ M.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
+  const opc = (sel) => Object.entries(ROLES).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
+  M.innerHTML = `<div class="panel"><h2>Usuarios</h2>
+    <p class="mut">Para agregar a alguien: 1) créalo en Supabase (Authentication, Users, Add user, con correo y contraseña, marcando Auto Confirm User); 2) regístralo aquí con el mismo correo.</p>
+    <div class="sel"><label>Correo<input class="txt" id="uc"></label><label>Nombres<input class="txt" id="un"></label><label>Apellidos<input class="txt" id="up"></label><label>Rol<select id="ur">${opc('docente')}</select></label></div>
+    <button class="btn pie" id="ua">Registrar usuario</button></div>
+    <div class="panel"><h3>${data.length} usuario(s)</h3><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th></tr></thead><tbody>
+    ${data.map(u => `<tr><td>${esc(u.apellidos)}, ${esc(u.nombres)}</td><td>${esc(u.correo)}</td><td><select data-r="${u.id}">${opc(u.rol)}</select></td><td><button class="tag ${u.activo ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`).join('')}</tbody></table></div></div>`;
+  $('#ua').onclick = async () => {
+    const v = id => $('#' + id).value.trim();
+    if (!v('uc') || !v('un') || !v('up')) return toast('Completa correo, nombres y apellidos.', 'mal');
+    const {error} = await sb.rpc('crear_perfil', {p_correo:v('uc'), p_nombres:v('un'), p_apellidos:v('up'), p_rol:$('#ur').value});
+    if (error) return toast(traducir(error), 'mal');
+    toast('Usuario registrado.', 'ok'); vistaUsuarios();
+  };
+  M.querySelectorAll('select[data-r]').forEach(s => s.onchange = async () => {
+    if (s.dataset.r === perfil.id){ toast('No puedes cambiar tu propio rol.', 'mal'); return vistaUsuarios(); }
+    const {error} = await sb.from('perfiles').update({rol:s.value}).eq('id', s.dataset.r);
+    error ? toast(traducir(error), 'mal') : toast('Rol actualizado.', 'ok');
+  });
+  M.querySelectorAll('button[data-a]').forEach(b => b.onclick = async () => {
+    if (b.dataset.a === perfil.id) return toast('No puedes desactivarte a ti mismo.', 'mal');
+    const u = data.find(x => x.id === b.dataset.a);
+    const {error} = await sb.from('perfiles').update({activo:!u.activo}).eq('id', u.id);
+    error ? toast(traducir(error), 'mal') : vistaUsuarios();
+  });
+}
+
+/* ---------- Asignaciones de docentes ---------- */
+async function vistaAsignaciones(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const rs = await Promise.all([
+    sb.from('perfiles').select('id,nombres,apellidos').eq('rol', 'docente').eq('activo', true).order('apellidos'),
+    sb.from('grados').select('id,nombre,orden'), sb.from('secciones').select('id,nombre'),
+    sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id),
+    sb.from('asignaturas').select('id,grado_id,nombre').eq('es_calculada', false).order('orden'),
+    sb.from('asignaciones_docente').select('docente_id,grupo_id,asignatura_id')
+  ]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [d, g, s, gp, as, ad] = rs.map(r => r.data);
+  const gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const grupos = gp.map(x => ({...x, nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], o:gr[x.grado_id].orden}))
+    .sort((a, b) => a.o - b.o || a.nom.localeCompare(b.nom));
+  const gnom = Object.fromEntries(grupos.map(x => [x.id, x.nom])), an = Object.fromEntries(as.map(a => [a.id, a.nombre]));
+  M.innerHTML = `<div class="panel"><h2>Asignaciones de docentes</h2><p class="mut">Cada docente solo verá y calificará las materias que le asignes aquí.</p>
+    <label>Docente<select id="sd"><option value="">Elegir…</option>${d.map(x => `<option value="${x.id}">${esc(x.apellidos)}, ${esc(x.nombres)}</option>`).join('')}</select></label></div><div id="asg"></div>`;
+  const pintar = () => {
+    const did = $('#sd').value, A = $('#asg'); if (!did){ A.innerHTML = ''; return; }
+    const mias = ad.filter(x => x.docente_id === did && gnom[x.grupo_id]);
+    A.innerHTML = `<div class="panel"><h3>Materias asignadas</h3>${mias.length ? `<div class="scroll"><table><thead><tr><th>Grado y sección</th><th>Asignatura</th><th></th></tr></thead><tbody>${mias.map(x => `<tr><td>${esc(gnom[x.grupo_id])}</td><td>${esc(an[x.asignatura_id])}</td><td><button class="btn sec" data-q="${x.grupo_id}:${x.asignatura_id}">Quitar</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="mut">Todavía no tiene materias.</p>'}
+      <div class="sel"><label>Grado y sección<select id="ag"><option value="">Elegir…</option>${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label><label>Asignatura<select id="aa" disabled></select></label></div>
+      <button class="btn pie" id="aadd" disabled>Agregar</button></div>`;
+    $('#ag').onchange = () => {
+      const x = grupos.find(y => String(y.id) === $('#ag').value);
+      $('#aa').innerHTML = x ? '<option value="">Elegir…</option>' + as.filter(a => a.grado_id === x.grado_id).map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('') : '';
+      $('#aa').disabled = !x; $('#aadd').disabled = true;
+    };
+    $('#aa').onchange = () => $('#aadd').disabled = !$('#aa').value;
+    $('#aadd').onclick = async () => {
+      const fila = {docente_id:did, grupo_id:+$('#ag').value, asignatura_id:+$('#aa').value};
+      const {error} = await sb.from('asignaciones_docente').insert(fila);
+      if (error) return toast(traducir(error), 'mal');
+      ad.push(fila); toast('Materia asignada.', 'ok'); pintar();
+    };
+    A.querySelectorAll('button[data-q]').forEach(b => b.onclick = async () => {
+      const [gid, aid] = b.dataset.q.split(':').map(Number);
+      const {data, error} = await sb.from('asignaciones_docente').delete().eq('docente_id', did).eq('grupo_id', gid).eq('asignatura_id', aid).select('docente_id');
+      if (error || !data.length) return toast(error ? traducir(error) : 'No se pudo quitar.', 'mal');
+      ad.splice(ad.findIndex(x => x.docente_id === did && x.grupo_id === gid && x.asignatura_id === aid), 1); pintar();
+    });
+  };
+  $('#sd').onchange = pintar;
 }
 
 iniciar();
