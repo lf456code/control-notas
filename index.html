@@ -64,6 +64,13 @@ td.t{font-weight:800;text-align:center}td.z{text-align:center}
 .barra{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
 table.est th,table.est td{text-align:center}table.est td{font-size:1.2rem;font-weight:600}
 input.txt{padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
+.boleta{background:#fff;border:1px solid var(--line);border-radius:10px;padding:1.2rem 1.4rem;margin:1rem 0;color:#000}
+.boleta h3{margin:0}.boleta p{margin:.2rem 0}.boleta .bal span{margin-left:1.2rem}
+.boleta table{margin:.8rem 0;font-size:.88rem}
+.boleta th,.boleta td{border:1px solid #888;padding:.22rem .5rem;white-space:normal;background:none!important;color:#000}
+.boleta th.area{background:#e8eeed!important;text-align:left}.boleta .c{text-align:center}
+.boleta .firmas{display:flex;justify-content:space-around;margin-top:2.2rem}.boleta .firmas span{border-top:1px solid #000;padding:.2rem 2rem}
+@media print{header.top,nav,.no-print{display:none!important}.wrap{display:block;padding:0;max-width:none}.boleta{border:0;margin:0;padding:.4cm;page-break-after:always;break-after:page}}
 @media(max-width:760px){
   .wrap{grid-template-columns:1fr;gap:1rem;padding:1rem}
   nav{flex-direction:row;overflow-x:auto}
@@ -96,7 +103,7 @@ const MODULOS = [
   {id:'unidades',n:'Unidades',r:DIR,f:()=>vistaUnidades()},
   {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
-  {id:'boletas',n:'Boletas',r:DIR},
+  {id:'boletas',n:'Boletas',r:DIR,f:()=>vistaBoletas()},
   {id:'comentarios',n:'Comentarios',r:DIR},
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
   {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
@@ -527,6 +534,80 @@ async function importarAlumnos(buenas, nErr, rs){
     await sb.from('importaciones').insert({usuario_id:perfil.id, tipo:'alumnos', filas_ok:buenas.length, filas_error:nErr});
     $('#prev').innerHTML = `<p class="tag ok">Listo: ${buenas.length} alumno(s) procesados, ${nuevas} inscrito(s) nuevos en ${esc(anio.nombre)}.</p>`;
   } catch (e){ toast(traducir(e), 'mal'); go.disabled = false; go.textContent = 'Importar ahora'; }
+}
+
+/* ---------- Boletas ---------- */
+function boletaHtml(f, r, grupo, ina, com, txt){
+  const a = f.a, et = grupo.grado.etiquetas_periodo;
+  if (r.error) return `<div class="boleta"><p class="err">${esc(a.apellidos)}, ${esc(a.nombres)}: ${esc(traducir(r.error))}</p></div>`;
+  let area = null;
+  const filas = r.data.map(x => {
+    const cab = x.area && x.area !== area ? `<tr><th colspan="6" class="area">${esc(x.area)}</th></tr>` : '';
+    area = x.area;
+    return cab + `<tr><td>${esc(x.asignatura)}</td>${[x.u1, x.u2, x.u3, x.u4].map(v => `<td class="c">${esc(v ?? '')}</td>`).join('')}<td class="c"><b>${esc(x.nota_oficial ?? '')}</b></td></tr>`;
+  }).join('');
+  const mi = u => ina.find(z => z.inscripcion_id === f.i.id && z.unidad === u);
+  const cm = com.filter(z => z.inscripcion_id === f.i.id && (z.observacion_es_id || z.comentario_en_id)).sort((p, q) => p.unidad - q.unidad);
+  const cab4 = et.map(e => `<th class="c">${esc(e)}</th>`).join('');
+  return `<div class="boleta"><h3>${esc(CONFIG.COLEGIO)}</h3><p>Boleta de calificaciones, año ${esc(anio.nombre)}</p>
+    <p class="bal"><b>Alumno:</b> ${esc(a.apellidos)}, ${esc(a.nombres)} <span>Clave: ${esc(a.clave)}</span> <span>Grado y sección: ${esc(grupo.nom)}</span></p>
+    <table><thead><tr><th>Asignatura</th>${cab4}<th class="c">Nota oficial</th></tr></thead><tbody>${filas}</tbody></table>
+    <table><thead><tr><th>Inasistencias</th>${cab4}</tr></thead><tbody><tr><td>Cantidad</td>${[1, 2, 3, 4].map(u => `<td class="c">${mi(u) ? mi(u).cantidad : ''}</td>`).join('')}</tr></tbody></table>
+    ${cm.length ? `<table><thead><tr><th>Unidad</th><th>Observaciones</th><th>Comments</th></tr></thead><tbody>${cm.map(c => `<tr><td>${esc(et[c.unidad - 1])}</td><td>${esc(txt[c.observacion_es_id] ?? '')}</td><td>${esc(txt[c.comentario_en_id] ?? '')}</td></tr>`).join('')}</tbody></table>` : ''}
+    <div class="firmas"><span>Director(a)</span><span>Coordinación</span></div></div>`;
+}
+async function vistaBoletas(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const rs = await Promise.all([
+    sb.from('grados').select('id,nombre,orden,etiquetas_periodo'), sb.from('secciones').select('id,nombre'),
+    sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)
+  ]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp] = rs.map(r => r.data);
+  const gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const grupos = gp.map(x => ({...x, grado:gr[x.grado_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id]}))
+    .sort((a, b) => a.grado.orden - b.grado.orden || a.nom.localeCompare(b.nom));
+  if (!grupos.length){ M.innerHTML = '<div class="panel"><p>Aún no hay grupos creados para este año.</p></div>'; return; }
+  M.innerHTML = `<div class="panel no-print"><h2>Boletas</h2><label>Grado y sección<select id="bg">${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label></div><div id="blista" class="no-print"></div><div id="bol"></div>`;
+  const cargar = async () => {
+    const grupo = grupos.find(x => String(x.id) === $('#bg').value), L = $('#blista'); $('#bol').innerHTML = '';
+    L.innerHTML = '<p class="mut">Cargando alumnos…</p>';
+    const {data:ins, error} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', grupo.id);
+    if (error){ L.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
+    if (!ins.length){ L.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
+    const {data:al, error:e2} = await sb.from('alumnos').select('id,clave,nombres,apellidos,solvente').in('id', ins.map(i => i.alumno_id));
+    if (e2){ L.innerHTML = `<p class="err">${esc(traducir(e2))}</p>`; return; }
+    const ali = Object.fromEntries(al.map(a => [a.id, a]));
+    const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a)
+      .sort((x, y) => (x.a.apellidos + x.a.nombres).localeCompare(y.a.apellidos + y.a.nombres));
+    L.innerHTML = `<div class="panel"><div class="barra"><button class="btn" id="btodas">Ver las boletas de todo el grupo</button></div><div class="scroll"><table><thead><tr><th>Clave</th><th>Alumno</th><th>Solvencia</th><th></th></tr></thead><tbody>
+      ${filas.map(f => `<tr><td>${esc(f.a.clave)}</td><td>${esc(f.a.apellidos)}, ${esc(f.a.nombres)}</td><td><span class="tag ${f.a.solvente ? 'ok' : 'mal'}">${f.a.solvente ? 'Solvente' : 'Insolvente'}</span></td><td><button class="btn sec" data-i="${f.i.id}" ${f.a.solvente ? '' : 'disabled'}>Ver boleta</button></td></tr>`).join('')}</tbody></table></div></div>`;
+    const mostrar = async (lista, aviso) => {
+      const B = $('#bol'); B.innerHTML = '<p class="mut no-print">Preparando boletas…</p>';
+      const ids = lista.map(f => f.i.id);
+      const [ina, com, cat] = await Promise.all([
+        sb.from('inasistencias').select('inscripcion_id,unidad,cantidad').in('inscripcion_id', ids),
+        sb.from('comentarios_inscripcion').select('inscripcion_id,unidad,comentario_en_id,observacion_es_id').in('inscripcion_id', ids),
+        sb.from('catalogo_comentarios').select('id,texto')
+      ]);
+      const txt = Object.fromEntries((cat.data || []).map(c => [c.id, c.texto])), nb = [];
+      for (let k = 0; k < lista.length; k += 6) nb.push(...await Promise.all(lista.slice(k, k + 6).map(f => sb.rpc('boleta_notas', {p_inscripcion:f.i.id}))));
+      B.innerHTML = `<div class="barra no-print"><button class="btn" id="bimp">Imprimir o guardar como PDF</button></div>${aviso ? `<p class="aviso no-print">${esc(aviso)}</p>` : ''}`
+        + lista.map((f, n) => boletaHtml(f, nb[n], grupo, ina.data || [], com.data || [], txt)).join('');
+      $('#bimp').onclick = () => window.print();
+      B.scrollIntoView();
+    };
+    L.querySelectorAll('button[data-i]').forEach(b => b.onclick = () => mostrar(filas.filter(f => f.i.id === b.dataset.i)));
+    $('#btodas').onclick = () => {
+      const ok = filas.filter(f => f.a.solvente), n = filas.length - ok.length;
+      if (!ok.length) return toast('Ningún alumno de este grupo está solvente.', 'mal');
+      mostrar(ok, n ? `No se incluyen ${n} alumno(s) insolvente(s).` : '');
+    };
+  };
+  $('#bg').onchange = cargar; cargar();
 }
 
 iniciar();
