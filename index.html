@@ -60,7 +60,7 @@ input.nota:disabled{background:#eef2f1;color:var(--mut)}
 #toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
 #toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
 table.n input.nota{width:4.8rem}
-th.ev{cursor:pointer}th small{display:block;font-weight:400}
+th.ev{cursor:pointer}.deleva{display:block;margin:.3rem auto 0;border:1px solid var(--red);background:#fff;color:var(--red);border-radius:6px;padding:.1rem .45rem;font-size:.75rem;font-weight:600;cursor:pointer}.deleva:hover{background:#fbe0dd}th small{display:block;font-weight:400}
 td.t{font-weight:800;text-align:center}td.z{text-align:center}
 .barra{display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0}
 table.est th,table.est td{text-align:center}table.est td{font-size:1.2rem;font-weight:600}
@@ -278,7 +278,7 @@ async function cargarTabla(grupo, asig, unidad){
     <h3>${esc(asig.nombre)}</h3><p class="mut">${esc(grupo.nom)}, ${esc(grupo.grado.etiquetas_periodo[unidad - 1])}. ${esc(niv.nombre)}: cortos ${niv.peso_cortos}%, actividades ${niv.peso_actividades}%, examen ${niv.peso_examen} pts, PMA hasta ${niv.pma_max}.</p>
     ${bloqueada ? '' : `<div class="barra">${niv.peso_cortos > 0 ? '<button class="btn sec" data-t="corto">+ Corto</button>' : ''}<button class="btn sec" data-t="actividad">+ Actividad</button>${evs.some(e => e.tipo === 'examen') ? '' : '<button class="btn sec" data-t="examen">+ Examen</button>'}</div>`}
     ${evs.length ? '' : '<p class="aviso">Aún no hay columnas. Agrégalas con los botones y escribe las notas; el total se calcula solo.</p>'}
-    <div class="scroll"><table class="n"><thead><tr><th>No.</th><th>Alumno</th>${evs.map(e => `<th class="ev" data-e="${e.id}" title="${dir ? 'Clic para cambiar el sobre cuánto o borrar la columna' : 'Clic para cambiar el sobre cuánto'}">${nombreEv(e)}<small>/${+e.valor_maximo}</small></th>`).join('')}<th>Zona<small>/40</small></th><th>PMA<small>/${niv.pma_max}</small></th><th>Total<small>/100</small></th></tr></thead><tbody>
+    <div class="scroll"><table class="n"><thead><tr><th>No.</th><th>Alumno</th>${evs.map(e => `<th class="ev" data-e="${e.id}" title="${dir ? 'Clic para cambiar el sobre cuánto o borrar la columna' : 'Clic para cambiar el sobre cuánto'}">${nombreEv(e)}<small>/${+e.valor_maximo}</small>${dir && e.tipo !== 'examen' ? `<button type="button" class="deleva" data-del="${e.id}" title="Eliminar esta columna" aria-label="Eliminar ${esc(nombreEv(e))}">🗑️ Quitar</button>` : ''}</th>`).join('')}<th>Zona<small>/40</small></th><th>PMA<small>/${niv.pma_max}</small></th><th>Total<small>/100</small></th></tr></thead><tbody>
     ${filas.map(({i, a}, n) => `<tr data-i="${i.id}"><td>${n + 1}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td>${evs.map(e => { const v = C[e.id + ':' + i.id] ?? ''; return `<td><input class="nota" data-e="${e.id}" data-i="${i.id}" data-o="${v}" value="${v}" inputmode="decimal" aria-label="${esc(nombreEv(e))}, ${esc(a.nombres)} ${esc(a.apellidos)}" ${dis}></td>`; }).join('')}<td class="z">0</td><td><input class="nota pma" data-i="${i.id}" data-o="${P[i.id] ?? ''}" value="${P[i.id] ?? ''}" inputmode="decimal" aria-label="PMA, ${esc(a.nombres)} ${esc(a.apellidos)}" ${dis}></td><td class="t">0</td></tr>`).join('')}</tbody></table></div></div>
     <div class="panel"><h3>Estadística</h3><div class="scroll"><table class="est"><thead><tr>${rangos.map(r => `<th>${r}</th>`).join('')}</tr></thead><tbody><tr>${rangos.map((r, k) => `<td id="e${k}">0</td>`).join('')}</tr></tbody></table></div></div>`;
 
@@ -326,6 +326,14 @@ async function cargarTabla(grupo, asig, unidad){
     if (!(max > 0 && max <= 9999)) return toast('Escribe un número mayor que 0.', 'mal');
     const {error} = await sb.from('evaluaciones').insert({grupo_id:grupo.id, asignatura_id:asig.id, unidad, tipo, numero, valor_maximo:max});
     error ? toast(traducir(error), 'mal') : cargarTabla(grupo, asig, unidad);
+  });
+  T.querySelectorAll('button.deleva').forEach(b => b.onclick = async ev => {
+    ev.stopPropagation();
+    const e = evs.find(x => x.id === b.dataset.del); if (!e) return;
+    if (!confirm(`¿Quitar la columna "${nombreEv(e)}" y todas sus notas? Esto no se puede deshacer.`)) return;
+    const res = await sb.from('evaluaciones').delete().eq('id', e.id).select('id');
+    if (res.error || !res.data.length) return toast(res.error ? traducir(res.error) : 'No tienes permiso para este cambio.', 'mal');
+    toast('Columna eliminada.', 'ok'); cargarTabla(grupo, asig, unidad);
   });
   T.querySelectorAll('th.ev').forEach(th => th.onclick = async () => {
     if (bloqueada) return;
