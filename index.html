@@ -67,17 +67,20 @@ table.est th,table.est td{text-align:center}table.est td{font-size:1.2rem;font-w
 input.txt{padding:.55rem .7rem;border:1px solid var(--line);border-radius:8px;background:#fff;width:100%}
 .boleta{position:relative;width:8.5in;height:11in;margin:1rem auto;background:#fff;color:#111;box-shadow:0 2px 12px #0003;overflow:hidden;box-sizing:border-box;font-size:10pt;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 #bol{overflow-x:auto}.boleta p{margin:0}.boleta table{width:100%;border-collapse:collapse}
-.bf .fcab{position:absolute;top:0;left:0;width:100%;height:2.06in}.bf .fcab svg{width:100%;height:100%;display:block}.bf .fcab img{position:absolute;left:3%;top:.16in;width:1.75in}
-.bf .fdat{position:relative;padding:1.3in 4% 0 36%}.bf .fdat p{display:flex;flex-wrap:wrap;gap:.2rem 1rem;margin-bottom:.1in;font-size:10.5pt;color:#444}.bf .fdat b{color:#888}
-.bf .ftab{margin:.22in 8% 0 8%;width:84%;font-size:calc(8.5pt*var(--k,1))}
-.bf .ftab th{background:#004e4f;color:#fff;text-align:center;padding:.07in .04in;font-size:10pt;border:0}.bf .ftab th:first-child{font-size:15pt;width:46%}
-.bf .ftab td{border:1px solid #bbb;padding:calc(.025in*var(--k,1)) .06in;background:#f1f1f1;line-height:calc(1 + .25*var(--k,1))}.bf .ftab td.c{text-align:center}
-.bf .ftab td.r1{background:#8f8f8f;color:#fff;font-weight:700}.bf .ftab td.r2{background:#bfbfbf;font-weight:700}.bf .ftab tr.ab td{background:#8f8f8f;color:#fff;font-weight:700}
-.bf .fcom{margin:.18in 8% 0 8%;font-size:calc(9pt*var(--k,1))}.bf .fcom p{margin-bottom:.12in}
-.bf .fleg{position:absolute;left:5%;bottom:.45in;border:2px solid #004e4f;padding:.08in .15in;color:#004e4f;font-size:8.5pt}.bf .fleg div{display:flex;align-items:center;gap:.7rem;margin:.03in 0}.bf .fleg b{width:.9in}
-.bf .fleg i{width:.55in;height:.17in;border:1px solid #bbb;display:inline-block;background:#fff}.bf .fleg i.r1{background:#8f8f8f}.bf .fleg i.r2{background:#bfbfbf}
-.bf .fpie{position:absolute;right:0;bottom:0;width:3.9in;height:1.45in;background:#004e4f;clip-path:polygon(26% 0,100% 0,100% 100%,0 100%);color:#fff;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding-right:.45in}
-.bf .fpie b{font-size:27pt;letter-spacing:.35em;line-height:1}.bf .fpie span{font-size:12pt;letter-spacing:.05em}
+.bf{background:#fff}.bf::before{content:"";position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='115'%20height='115'%20fill='none'%20stroke='%230e4f4b'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M8%2022%2030%2012%2052%2022%2030%2032Z%20M17%2027v10c8%206%2022%206%2026%200V27'/%3E%3Cpath%20d='M74%2014%2088%2028%2066%2050%2058%2052%2060%2044Z%20M70%2022%2080%2032'/%3E%3Cpath%20d='M8%2074q12-7%2024%200v22q-12-7-24%200Z%20M32%2074q12-7%2024%200v22q-12-7-24%200Z'/%3E%3Ccircle%20cx='86'%20cy='84'%20r='3'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'%20transform='rotate(60%2086%2084)'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'%20transform='rotate(120%2086%2084)'/%3E%3Cpath%20d='M52%20100h8M50%20104h12M56%2088v5M47%2096c-6-6-4-14%203-17%205-2%2010%200%2012%205%202%205%200%209-4%2012'/%3E%3C/svg%3E") 0 0/1.15in;opacity:.05;z-index:0;pointer-events:none}
+.bf .fcab{position:absolute;top:0;left:0;width:100%;height:2.5in;z-index:1}.bf .fcab svg{width:100%;height:100%;display:block}.bf .fcab img{position:absolute;left:.62in;top:.3in;width:2.05in}
+.bf .fdat{position:relative;z-index:3;padding:1.28in 0 0 2.7in;display:grid;gap:.16in}.bf .fdat p{display:flex;gap:0 .5in;margin:0;font-size:11pt;align-items:baseline}
+.bf .fdat b{color:#7d7d7d;font-weight:800;margin-right:.08in}.bf .fdat i{font-style:normal;font-weight:800;color:#111}
+.bf .ftab{position:relative;z-index:3;margin:.22in 0 0 1.25in;width:6.4in;table-layout:fixed;font:calc(8pt*var(--k,1)) Arial,Helvetica,sans-serif}
+.bf .ftab th{background:#135051;color:#fff;text-align:center;padding:.06in .02in;font:800 calc(10pt*var(--k,1))/1.15 Figtree,Arial,sans-serif;border:0;white-space:normal}.bf .ftab th:first-child{font-size:17pt;width:3.1in}
+.bf .ftab td{border:1px solid #c9c9c9;padding:calc(.03in*var(--k,1)) .05in;background:#f1f1f1;line-height:calc(1 + .2*var(--k,1))}.bf .ftab td.c{text-align:center;background:#fff}
+.bf .ftab td.r1{background:#8f8f8f;color:#fff;font-weight:700}.bf .ftab td.r2{background:#bdbdbd;font-weight:700}.bf .ftab tr.ab td.c{background:#8f8f8f;color:#fff;font-weight:800}
+.bf .fcom{position:relative;z-index:3;margin:.2in 1.4in 0 .7in;font-size:calc(8.5pt*var(--k,1));font-family:Arial,Helvetica,sans-serif}.bf .fcom p{display:grid;grid-template-columns:1.4in 1fr;margin-bottom:.1in}
+.bf .fcom b{font:800 calc(12pt*var(--k,1)) Figtree,Arial,sans-serif;color:#111}
+.bf .fleg{position:absolute;z-index:3;left:.65in;bottom:.35in;width:4.05in;white-space:nowrap;background:#fff;border:2px solid #135051;padding:.08in .18in;color:#135051;font:800 9pt Figtree,Arial,sans-serif}.bf .fleg div{display:flex;align-items:center;gap:.2in;margin:.04in 0}.bf .fleg b{width:1.2in;font-size:11.5pt}
+.bf .fleg i{width:.75in;height:.2in;border:1px solid #c9c9c9;display:inline-block;background:#fff}.bf .fleg i.r1{background:#8f8f8f}.bf .fleg i.r2{background:#bdbdbd}
+.bf .fpie{position:absolute;z-index:2;right:0;bottom:0;width:3.5in;height:1.55in;background:#135051;clip-path:polygon(24% 0,100% 0,100% 100%,0 100%);color:#fff;display:flex;flex-direction:column;align-items:flex-end;justify-content:center;padding:0 .4in 0 0;font-family:Figtree,Arial,sans-serif}
+.bf .fpie b{font-size:30pt;font-weight:800;letter-spacing:.42em;line-height:1;margin-right:-.42em}.bf .fpie span{font-size:15pt;font-weight:400;letter-spacing:.02em}
 /* ---- Boleta Nido (Preescolar a Preparatoria) ---- */
 .bn{padding:.35in .55in .3in .6in;--navy:#123a56;--vd:#00b146;--tl:#00907a}
 .bn .nhead{display:flex;align-items:center;gap:.16in;height:.52in;background:var(--vd);border:3px solid #d6d6d6;border-radius:.3in;padding:0 .2in 0 .06in;color:#fff}
@@ -139,6 +142,7 @@ const MODULOS = [
   {id:'boletas',n:'Boletas',r:DIR,f:()=>vistaBoletas()},
   {id:'comentarios',n:'Comentarios',r:DIR},
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
+  {id:'catalogo',n:'Asignaturas',r:['administrador'],f:()=>vistaCatalogo()},
   {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
   {id:'usuarios',n:'Usuarios',r:['administrador'],f:()=>vistaUsuarios()},
   {id:'bitacora',n:'Bitácora',r:['administrador','director']}
@@ -204,7 +208,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 11-nov-C</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 12-nov-A</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -227,7 +231,7 @@ async function vistaNotas(){
     sb.from('grados').select('*').order('orden'),
     sb.from('secciones').select('*'),
     sb.from('grupos').select('*').eq('anio_id', anio.id),
-    sb.from('asignaturas').select('id,grado_id,nombre,orden,escala').eq('es_calculada', false).order('orden'),
+    sb.from('asignaturas').select('id,grado_id,nombre,orden,escala').eq('es_calculada', false).eq('activa', true).order('orden'),
     doc ? sb.from('asignaciones_docente').select('grupo_id,asignatura_id') : Promise.resolve({data:[]})
   ]);
   const fallo = rs.find(r => r.error);
@@ -468,7 +472,7 @@ async function vistaAsignaciones(){
     sb.from('perfiles').select('id,nombres,apellidos').eq('rol', 'docente').eq('activo', true).order('apellidos'),
     sb.from('grados').select('id,nombre,orden'), sb.from('secciones').select('id,nombre'),
     sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id),
-    sb.from('asignaturas').select('id,grado_id,nombre').eq('es_calculada', false).order('orden'),
+    sb.from('asignaturas').select('id,grado_id,nombre').eq('es_calculada', false).eq('activa', true).order('orden'),
     sb.from('asignaciones_docente').select('docente_id,grupo_id,asignatura_id')
   ]);
   const fallo = rs.find(r => r.error);
@@ -605,8 +609,8 @@ function boletaFormal(f, grupo, et, filas, abs, tot, coment){ const a = f.a;
   const cel = v => { const n = parseFloat(v); return `<td class="c ${isNaN(n) ? '' : n < 60 ? 'r1' : n < 70 ? 'r2' : ''}">${esc(v ?? '')}</td>`; };
   const rows = filas.map(x => `<tr><td>${esc(x.n)}</td>${x.v.map(cel).join('')}${cel(x.o)}</tr>`).join('')
     + `<tr class="ab"><td>Absences</td>${abs.map(v => `<td class="c">${v ?? ''}</td>`).join('')}<td class="c">${tot}</td></tr>`;
-  return `<div class="boleta bf"><div class="fcab"><svg viewBox="0 0 481 120" preserveAspectRatio="none"><polygon points="118,0 282,0 128,105" fill="#004e4f"/><polygon points="0,0 122,0 128,105 0,118" fill="#007870"/></svg><img src="logo-blanco.png" alt="" onerror="this.remove()"></div>
-    <div class="fdat"><p><b>Nombre:</b> ${esc(a.nombres)} <b>Apellidos:</b> ${esc(a.apellidos)}</p><p><b>Grado:</b> ${esc(grupo.gn)} <b>Sección:</b> ${esc(grupo.sn)} <b>No.:</b> ${f.num}</p></div>
+  return `<div class="boleta bf"><div class="fcab"><svg viewBox="0 0 850 250" preserveAspectRatio="none"><polygon points="210,0 497,0 210,130" fill="#135051"/><polygon points="0,0 210,0 210,130 185,205 0,240" fill="#117972"/></svg><img src="logo-blanco.png" alt="" onerror="this.remove()"></div>
+    <div class="fdat"><p><span><b>Nombre:</b><i>${esc(a.nombres)}</i></span><span><b>Apellidos</b><i>${esc(a.apellidos)}</i></span></p><p><span><b>Grado:</b><i>${esc(grupo.gn)}</i></span><span><b>Sección:</b><i>${esc(grupo.sn)}</i></span><span><b>Clave:</b><i>${f.num}</i></span></p></div>
     <table class="ftab"><thead><tr><th>Asignaturas</th>${et.map(e => `<th>${esc(e)}</th>`).join('')}<th>Nota Oficial</th></tr></thead><tbody>${rows}</tbody></table>
     <div class="fcom">${coment}</div>
     <div class="fleg"><div><b>0 a 59 Pts</b><i class="r1"></i>Reprobado MINEDUC</div><div><b>60 a 69 Pts</b><i class="r2"></i>Reprobado Colegio</div><div><b>70 a 100 Pts</b><i></i>Aprobado</div></div>
@@ -692,6 +696,99 @@ async function vistaBoletas(){
     };
   };
   $('#bg').onchange = cargar; cargar();
+}
+
+/* ---------- Asignaturas y observaciones: descargar, editar en Excel y subir ---------- */
+const SN = v => /^(s|si|sí|1|true|x)$/i.test(String(v ?? '').trim());
+const leerXlsx = async f => XLSX.utils.sheet_to_json((wb => wb.Sheets[wb.SheetNames[0]])(XLSX.read(await f.arrayBuffer())), {defval:''}).map(r => Object.fromEntries(Object.entries(r).map(([k, v]) => [norm(k), typeof v === 'string' ? v.trim() : v])));
+const bajarXlsx = (filas, hoja, nombre) => { const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filas), hoja); XLSX.writeFile(wb, nombre); };
+function vistaCatalogo(){
+  const M = $('#main');
+  if (typeof XLSX === 'undefined'){ M.innerHTML = '<div class="panel"><p class="err">No se pudo cargar el lector de Excel. Revisa tu internet y recarga.</p></div>'; return; }
+  M.innerHTML = `<div class="panel"><h2>Asignaturas por grado</h2>
+    <p class="mut">Descarga el Excel actual, cambia lo que necesites y súbelo. Puedes cambiar nombre, abreviatura, orden, escala, área, los componentes de las filas calculadas (separados por punto y coma) y poner <b>Activa = No</b> para quitar una asignatura sin perder sus notas. Las filas con ID se actualizan; las que no lo tienen se crean. No borres la columna ID.</p>
+    <div class="barra"><button class="btn sec" id="adl">Descargar Excel actual</button><input type="file" id="aup" accept=".xlsx,.xls,.csv"></div><div id="aprev"></div></div>
+    <div class="panel"><h2>Observaciones y comentarios</h2>
+    <p class="mut">Columnas: <b>Nivel</b> (Primaria y Secundaria o Preprimaria), <b>Idioma</b> (es o en), <b>Número</b>, <b>Texto</b>, <b>Activo</b>. Si el número ya existe en ese nivel e idioma, se actualiza el texto; si no, se agrega.</p>
+    <div class="barra"><button class="btn sec" id="odl">Descargar Excel actual</button><input type="file" id="oup" accept=".xlsx,.xls,.csv"></div><div id="oprev"></div></div>`;
+  $('#adl').onclick = async () => {
+    const rs = await Promise.all([sb.from('asignaturas').select('*'), sb.from('grados').select('id,nombre,orden'), sb.from('asignatura_componentes').select('asignatura_id,componente_id')]);
+    const er = rs.find(r => r.error); if (er) return toast(traducir(er.error), 'mal');
+    const [a, g, c] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), nom = Object.fromEntries(a.map(x => [x.id, x.nombre])), cp = {};
+    c.forEach(x => (cp[x.asignatura_id] = cp[x.asignatura_id] || []).push(nom[x.componente_id]));
+    bajarXlsx(a.sort((p, q) => gr[p.grado_id].orden - gr[q.grado_id].orden || p.orden - q.orden).map(x => ({ID:x.id, Grado:gr[x.grado_id].nombre, Orden:x.orden, Asignatura:x.nombre, Abreviatura:x.abreviatura || '', Escala:x.escala, 'Área':x.area || '', Calculada:x.es_calculada ? 'Sí' : 'No', Componentes:(cp[x.id] || []).join('; '), Activa:x.activa ? 'Sí' : 'No'})), 'Asignaturas', 'asignaturas.xlsx');
+  };
+  $('#aup').onchange = async ev => {
+    const f = ev.target.files[0]; if (!f) return; const P = $('#aprev'); P.innerHTML = '<p class="mut">Revisando el archivo…</p>';
+    const [rows, g, a] = await Promise.all([leerXlsx(f), sb.from('grados').select('id,nombre'), sb.from('asignaturas').select('id,grado_id,nombre')]);
+    if (g.error || a.error){ P.innerHTML = `<p class="err">${esc(traducir(g.error || a.error))}</p>`; return; }
+    const gr = Object.fromEntries(g.data.map(x => [norm(x.nombre), x.id])), ids = new Set(a.data.map(x => String(x.id))), nombres = new Set(a.data.map(x => x.grado_id + ':' + norm(x.nombre)));
+    const buenas = [], err = [], vistas = new Set();
+    rows.forEach((r, n) => {
+      const lin = n + 2; if (!r.asignatura && !r.id) return;
+      const b = {id:r.id === '' ? null : Number(r.id), gid:gr[norm(r.grado)], nombre:String(r.asignatura || ''), abrev:String(r.abreviatura || ''), orden:Number(r.orden), escala:norm(r.escala) || 'numerica', area:String(r.area || ''), calc:SN(r.calculada), activa:r.activa === '' ? true : SN(r.activa), comps:String(r.componentes || '').split(/[;|]/).map(s => s.trim()).filter(Boolean)};
+      if (!b.gid) return err.push(`Fila ${lin}: grado no reconocido (${r.grado || 'vacío'}).`);
+      if (!b.nombre) return err.push(`Fila ${lin}: falta el nombre de la asignatura.`);
+      if (!Number.isFinite(b.orden)) return err.push(`Fila ${lin}: el orden debe ser un número.`);
+      if (!['numerica', 'literal', 'mixta'].includes(b.escala)) return err.push(`Fila ${lin}: escala no válida (use numerica, literal o mixta).`);
+      if (b.id !== null && !ids.has(String(b.id))) return err.push(`Fila ${lin}: el ID ${b.id} no existe.`);
+      const k = b.gid + ':' + norm(b.nombre); if (vistas.has(k)) return err.push(`Fila ${lin}: asignatura repetida en el mismo grado (${b.nombre}).`);
+      if (b.id === null && nombres.has(k)) return err.push(`Fila ${lin}: ya existe "${b.nombre}" en ese grado; usa la fila con su ID.`);
+      if (b.calc && !b.comps.length) return err.push(`Fila ${lin}: una fila calculada necesita componentes.`);
+      vistas.add(k); buenas.push(b);
+    });
+    const conocidos = new Set([...nombres, ...vistas]);
+    buenas.forEach(b => b.comps.forEach(c => { if (!conocidos.has(b.gid + ':' + norm(c))) err.push(`${b.nombre}: el componente "${c}" no existe en ese grado.`); }));
+    P.innerHTML = `<p><b>${buenas.length}</b> fila(s) válidas: ${buenas.filter(b => b.id === null).length} nueva(s), ${buenas.filter(b => b.id !== null).length} por actualizar, ${buenas.filter(b => !b.activa).length} desactivada(s)${err.length ? `, <b>${err.length}</b> problema(s)` : ''}.</p>
+      ${err.length ? `<div class="aviso">${err.slice(0, 15).map(esc).join('<br>')}${err.length > 15 ? '<br>…' : ''}<br><b>Corrige esto y vuelve a subir el archivo.</b></div>` : ''}
+      ${buenas.length && !err.length ? '<button class="btn pie" id="ago">Aplicar cambios</button>' : ''}`;
+    if (buenas.length && !err.length) $('#ago').onclick = () => aplicarAsignaturas(buenas, rows.length);
+  };
+  $('#odl').onclick = async () => {
+    const {data, error} = await sb.from('catalogo_comentarios').select('nivel,idioma,numero,texto,activo').order('nivel').order('idioma').order('numero');
+    if (error) return toast(traducir(error), 'mal');
+    bajarXlsx(data.map(x => ({Nivel:x.nivel, Idioma:x.idioma, 'Número':x.numero, Texto:x.texto, Activo:x.activo ? 'Sí' : 'No'})), 'Observaciones', 'observaciones.xlsx');
+  };
+  $('#oup').onchange = async ev => {
+    const f = ev.target.files[0]; if (!f) return; const P = $('#oprev'); P.innerHTML = '<p class="mut">Revisando el archivo…</p>';
+    const buenas = [], err = [], vistas = new Set();
+    (await leerXlsx(f)).forEach((r, n) => {
+      const lin = n + 2; if (!r.texto && !r.numero) return;
+      const b = {nivel:String(r.nivel || ''), idioma:norm(r.idioma), numero:Number(r.numero), texto:String(r.texto || ''), activo:r.activo === '' ? true : SN(r.activo)}, k = [b.nivel, b.idioma, b.numero].join('|');
+      if (!b.nivel) return err.push(`Fila ${lin}: falta el nivel.`);
+      if (!['es', 'en'].includes(b.idioma)) return err.push(`Fila ${lin}: el idioma debe ser es o en.`);
+      if (!Number.isInteger(b.numero) || b.numero < 1) return err.push(`Fila ${lin}: el número no es válido.`);
+      if (!b.texto) return err.push(`Fila ${lin}: falta el texto.`);
+      if (vistas.has(k)) return err.push(`Fila ${lin}: número repetido en ese nivel e idioma.`);
+      vistas.add(k); buenas.push(b);
+    });
+    P.innerHTML = `<p><b>${buenas.length}</b> observación(es) válidas${err.length ? `, <b>${err.length}</b> con problemas` : ''}.</p>${err.length ? `<div class="aviso">${err.slice(0, 15).map(esc).join('<br>')}<br><b>Corrige esto y vuelve a subir el archivo.</b></div>` : ''}${buenas.length && !err.length ? '<button class="btn pie" id="ogo">Aplicar cambios</button>' : ''}`;
+    if (buenas.length && !err.length) $('#ogo').onclick = async () => {
+      $('#ogo').disabled = true;
+      for (let i = 0; i < buenas.length; i += 200){
+        const {error} = await sb.from('catalogo_comentarios').upsert(buenas.slice(i, i + 200), {onConflict:'nivel,idioma,numero'});
+        if (error){ toast(traducir(error), 'mal'); $('#ogo').disabled = false; return; }
+      }
+      await sb.from('importaciones').insert({usuario_id:perfil.id, tipo:'observaciones', filas_ok:buenas.length, filas_error:0});
+      P.innerHTML = `<p class="tag ok">Listo: ${buenas.length} observación(es) guardadas.</p>`;
+    };
+  };
+}
+async function aplicarAsignaturas(buenas, total){
+  const go = $('#ago'); go.disabled = true; go.textContent = 'Aplicando…';
+  try {
+    const col = b => ({grado_id:b.gid, nombre:b.nombre, abreviatura:b.abrev || null, orden:b.orden, escala:b.escala, area:b.area || null, es_calculada:b.calc, activa:b.activa});
+    const ex = buenas.filter(b => b.id !== null), nu = buenas.filter(b => b.id === null);
+    if (ex.length){ const {error} = await sb.from('asignaturas').upsert(ex.map(b => ({id:b.id, ...col(b)})), {onConflict:'id'}); if (error) throw error; }
+    if (nu.length){ const {error} = await sb.from('asignaturas').insert(nu.map(col)); if (error) throw error; }
+    const {data:todas, error:e1} = await sb.from('asignaturas').select('id,grado_id,nombre'); if (e1) throw e1;
+    const mapa = Object.fromEntries(todas.map(x => [x.grado_id + ':' + norm(x.nombre), x.id])), idDe = b => mapa[b.gid + ':' + norm(b.nombre)];
+    const {error:e2} = await sb.from('asignatura_componentes').delete().in('asignatura_id', buenas.map(idDe)); if (e2) throw e2;
+    const pares = buenas.filter(b => b.calc).flatMap(b => b.comps.map(c => ({asignatura_id:idDe(b), componente_id:mapa[b.gid + ':' + norm(c)]})));
+    if (pares.length){ const {error} = await sb.from('asignatura_componentes').insert(pares); if (error) throw error; }
+    await sb.from('importaciones').insert({usuario_id:perfil.id, tipo:'asignaturas', filas_ok:buenas.length, filas_error:total - buenas.length});
+    $('#aprev').innerHTML = `<p class="tag ok">Listo: ${buenas.length} asignatura(s) procesadas (${nu.length} nuevas).</p>`;
+  } catch (e){ toast(traducir(e), 'mal'); go.disabled = false; go.textContent = 'Aplicar cambios'; }
 }
 
 iniciar();
