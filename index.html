@@ -58,6 +58,7 @@ input.nota:disabled{background:#eef2f1;color:var(--mut)}
 .login form{width:min(24rem,100%);display:grid;gap:.9rem;text-align:center;background:#fff;border-radius:12px;padding:2rem 1.6rem}
 .login label{text-align:left}
 input.num{width:5.5rem;padding:.45rem .5rem;border:1px solid var(--line);border-radius:8px;text-align:center;background:#fff}
+.lst{height:auto;min-height:11in;padding:.6in .7in}.lst h3{margin:.08in 0;font-size:15pt;color:#135051}.lst p{margin:.03in 0}.lst table{margin-top:.15in;font-size:10pt}.lst th,.lst td{border:1px solid #bbb;padding:.03in .07in;text-align:left}.lst th{background:#135051;color:#fff}
 #toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
 #toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
 table.n input.nota{width:4.8rem}
@@ -144,6 +145,7 @@ const MODULOS = [
   {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
   {id:'boletas',n:'Boletas',r:DIR,f:()=>vistaBoletas()},
+  {id:'listados',n:'Listados',r:[...DIR,'subcoordinador'],f:()=>vistaListados()},
   {id:'comentarios',n:'Comentarios',r:DIR,f:()=>vistaComentarios()},
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
   {id:'catalogo',n:'Asignaturas',r:['administrador'],f:()=>vistaCatalogo()},
@@ -213,7 +215,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-F</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-H</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -392,7 +394,7 @@ async function vistaSolvencia(){
   const gn = Object.fromEntries(g.map(x => [x.id, x.nombre])), sn = Object.fromEntries(s.map(x => [x.id, x.nombre]));
   const gpn = Object.fromEntries(gp.map(x => [x.id, gn[x.grado_id] + ' ' + sn[x.seccion_id]]));
   const gal = Object.fromEntries(ins.map(x => [x.alumno_id, gpn[x.grupo_id]]));
-  M.innerHTML = '<div class="panel"><h2>Solvencia de alumnos</h2><p class="mut">Un alumno insolvente no puede recibir su boleta.</p><input id="bq" class="busca" placeholder="Buscar por nombre, apellido o clave" aria-label="Buscar alumno"><div id="lista"></div></div>';
+  M.innerHTML = '<div class="panel"><h2>Solvencia de alumnos</h2><p class="mut">Un alumno insolvente no puede recibir su boleta.</p><input id="bq" class="busca" placeholder="Buscar por nombre, apellido o clave" aria-label="Buscar alumno"><div id="lista"></div></div><div class="panel"><h2>Actualizar con un listado</h2><p class="mut">Sube un Excel con las columnas <b>Clave</b> y <b>Solvente</b> (Sí o No). Los alumnos cuyo estado cambie se actualizan; los demás se dejan igual. Puedes descargar el listado actual para usarlo de base. Los botones de arriba siguen funcionando.</p><div class="barra"><button class="btn sec" id="sdl">Descargar listado actual</button><input type="file" id="sup" accept=".xlsx,.xls,.csv"></div><div id="sprev"></div></div>';
   const pintar = () => {
     const q = $('#bq').value.trim().toLowerCase();
     const f = al.filter(a => !q || (a.clave + ' ' + a.nombres + ' ' + a.apellidos).toLowerCase().includes(q));
@@ -406,6 +408,41 @@ async function vistaSolvencia(){
     });
   };
   $('#bq').oninput = pintar; pintar();
+  const sinLector = () => typeof XLSX === 'undefined' && (toast('No se pudo cargar el lector de Excel. Revisa tu internet y recarga la página.', 'mal'), true);
+  $('#sdl').onclick = () => { if (sinLector()) return; bajarXlsx(al.map(a => ({Clave:a.clave, Apellidos:a.apellidos, Nombres:a.nombres, Grado:gal[a.id] || '', Solvente:a.solvente ? 'Sí' : 'No'})), 'Solvencia', 'solvencia.xlsx'); };
+  $('#sup').onchange = async ev => {
+    const f = ev.target.files[0]; if (!f || sinLector()) return; const P = $('#sprev'); P.innerHTML = '<p class="mut">Revisando el archivo…</p>';
+    const SI = /^(s|si|sí|1|true|x|solvente)$/i, NO = /^(n|no|0|false|insolvente)$/i, sinCeros = c => String(c).trim().replace(/^0+(?=.)/, '');
+    const porClave = new Map(); al.forEach(a => { porClave.set(String(a.clave).trim(), a); porClave.set(sinCeros(a.clave), a); });
+    const cambios = [], err = [], vistas = new Set(); let igual = 0;
+    (await leerXlsx(f)).forEach((r, n) => {
+      const lin = n + 2, clave = String(r.clave ?? '').trim(), v = String(r.solvente ?? '').trim(); if (!clave && !v) return;
+      if (!clave) return err.push(`Fila ${lin}: falta la clave.`);
+      if (!SI.test(v) && !NO.test(v)) return err.push(`Fila ${lin} (${clave}): en Solvente escribe Sí o No.`);
+      const a = porClave.get(clave) || porClave.get(sinCeros(clave));
+      if (!a) return err.push(`Fila ${lin}: la clave ${clave} no existe entre los alumnos activos.`);
+      if (vistas.has(a.id)) return err.push(`Fila ${lin}: la clave ${clave} está repetida.`);
+      vistas.add(a.id); const sol = SI.test(v);
+      if (sol === !!a.solvente) igual++; else cambios.push({a, sol});
+    });
+    const aSol = cambios.filter(c => c.sol).length, aIns = cambios.length - aSol;
+    P.innerHTML = `<p><b>${cambios.length}</b> alumno(s) cambian: ${aSol} pasan a solvente y ${aIns} a insolvente. ${igual} ya estaban como indica el archivo${err.length ? `, <b>${err.length}</b> fila(s) con problemas` : ''}.</p>
+      ${err.length ? `<div class="aviso">${err.slice(0, 15).map(esc).join('<br>')}${err.length > 15 ? '<br>…' : ''}<br>Esas filas no se aplican. Puedes corregirlas y volver a subir el archivo.</div>` : ''}
+      ${cambios.length ? '<button class="btn pie" id="sgo">Aplicar cambios</button>' : ''}`;
+    if (!cambios.length) return;
+    $('#sgo').onclick = async () => {
+      const go = $('#sgo'); go.disabled = true; let hechos = 0, fallos = 0, ult = '';
+      for (let i = 0; i < cambios.length; i += 10){
+        await Promise.all(cambios.slice(i, i + 10).map(async c => {
+          const {error} = await sb.rpc('marcar_solvencia', {p_alumno:c.a.id, p_solvente:c.sol});
+          if (error){ fallos++; ult = traducir(error); } else { c.a.solvente = c.sol; hechos++; }
+        }));
+        go.textContent = `Aplicando… ${hechos + fallos} de ${cambios.length}`;
+      }
+      await sb.from('importaciones').insert({usuario_id:perfil.id, tipo:'solvencia', filas_ok:hechos, filas_error:fallos + err.length});
+      P.innerHTML = `<p class="tag ${fallos ? 'mal' : 'ok'}">Listo: ${hechos} alumno(s) actualizados${fallos ? `, ${fallos} con error (${esc(ult)})` : ''}.</p>`; pintar();
+    };
+  };
 }
 
 /* ---------- Unidades (abrir y cerrar) ---------- */
@@ -987,6 +1024,51 @@ async function vistaInasistencias(){
         cargar();
       } catch (e){ toast(traducir(e), 'mal'); b.disabled = false; }
     };
+  };
+}
+
+/* ---------- Listados ---------- */
+async function vistaListados(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const grupos = gp.map(x => ({...x, gn:gr[x.grado_id].nombre, sn:se[x.seccion_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], ord:gr[x.grado_id].orden})).sort((a, b) => a.ord - b.ord || a.nom.localeCompare(b.nom));
+  if (!grupos.length){ M.innerHTML = '<div class="panel"><p>Aún no hay grupos creados para este año.</p></div>'; return; }
+  M.innerHTML = `<div class="panel no-print"><h2>Listados oficiales</h2>
+    <p class="mut">Lista de alumnos inscritos en el año ${esc(anio.nombre)}, por grado y sección. Siempre refleja a los alumnos inscritos en este momento.</p>
+    <div class="sel"><label>Grado y sección<select id="lg"><option value="">Elegir…</option>${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label></div>
+    <div class="barra"><button class="btn sec" id="ltodos">Descargar Excel de todos los grupos</button></div></div><div id="lbol"></div>`;
+  const traer = async x => {
+    const {data:ins, error} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', x.id); if (error) throw error;
+    if (!ins.length) return [];
+    const {data:al, error:e2} = await sb.from('alumnos').select('id,clave,nombres,apellidos').in('id', ins.map(i => i.alumno_id)); if (e2) throw e2;
+    return al.sort((p, q) => (p.apellidos + p.nombres).localeCompare(q.apellidos + q.nombres)).map((a, n) => ({'No.':n + 1, Clave:a.clave, Apellidos:a.apellidos, Nombres:a.nombres}));
+  };
+  $('#lg').onchange = async () => {
+    const x = grupos.find(y => String(y.id) === $('#lg').value), B = $('#lbol'); if (!x){ B.innerHTML = ''; return; }
+    B.innerHTML = '<p class="mut no-print">Cargando…</p>';
+    try {
+      const filas = await traer(x), hoy = new Date().toLocaleDateString('es-GT');
+      B.innerHTML = `<div class="barra no-print"><button class="btn" id="lxl">Descargar Excel</button><button class="btn sec" id="lim">Imprimir o guardar como PDF</button></div>
+        <div class="boleta lst"><h3>Colegio Bilingüe Campo Real</h3><p><b>Listado oficial de alumnos</b></p><p>${esc(x.gn)} · Sección ${esc(x.sn)} · Año escolar ${esc(anio.nombre)}</p><p>Total de alumnos: ${filas.length} · Fecha: ${esc(hoy)}</p>
+        <table><thead><tr><th>No.</th><th>Clave</th><th>Apellidos</th><th>Nombres</th></tr></thead><tbody>${filas.map(f => `<tr><td>${f['No.']}</td><td>${esc(f.Clave)}</td><td>${esc(f.Apellidos)}</td><td>${esc(f.Nombres)}</td></tr>`).join('')}</tbody></table></div>`;
+      $('#lxl').onclick = () => typeof XLSX === 'undefined' ? toast('No se pudo cargar el lector de Excel. Recarga la página.', 'mal') : bajarXlsx(filas, x.nom.slice(0, 31), `listado_${x.nom.replace(/\s+/g, '_')}.xlsx`);
+      $('#lim').onclick = () => window.print();
+    } catch (e){ B.innerHTML = `<p class="err">${esc(traducir(e))}</p>`; }
+  };
+  $('#ltodos').onclick = async () => {
+    if (typeof XLSX === 'undefined') return toast('No se pudo cargar el lector de Excel. Recarga la página.', 'mal');
+    const b = $('#ltodos'); b.disabled = true; b.textContent = 'Preparando…';
+    try {
+      const wb = XLSX.utils.book_new();
+      for (const x of grupos) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(await traer(x)), x.nom.slice(0, 31));
+      XLSX.writeFile(wb, `listados_${anio.nombre}.xlsx`);
+    } catch (e){ toast(traducir(e), 'mal'); }
+    b.disabled = false; b.textContent = 'Descargar Excel de todos los grupos';
   };
 }
 
