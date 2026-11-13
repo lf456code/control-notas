@@ -57,6 +57,7 @@ input.nota:disabled{background:#eef2f1;color:var(--mut)}
 .login{min-height:100vh;display:grid;place-items:center;background:var(--deep);padding:1rem}
 .login form{width:min(24rem,100%);display:grid;gap:.9rem;text-align:center;background:#fff;border-radius:12px;padding:2rem 1.6rem}
 .login label{text-align:left}
+input.num{width:5.5rem;padding:.45rem .5rem;border:1px solid var(--line);border-radius:8px;text-align:center;background:#fff}
 #toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
 #toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
 table.n input.nota{width:4.8rem}
@@ -138,6 +139,7 @@ const ROLES = {administrador:'Administrador',director:'Director',coordinador:'Co
 const DIR = ['administrador','director','coordinador'];
 const MODULOS = [
   {id:'notas',n:'Notas',r:[...DIR,'subcoordinador','docente'],f:()=>vistaNotas()},
+  {id:'inasistencias',n:'Inasistencias',r:[...DIR,'subcoordinador'],f:()=>vistaInasistencias()},
   {id:'unidades',n:'Unidades',r:DIR,f:()=>vistaUnidades()},
   {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
@@ -211,7 +213,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-E</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-F</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -914,6 +916,73 @@ async function vistaComentarios(){
         if (borrar.length){ const {error} = await sb.from('comentarios_inscripcion').delete().eq('unidad', u).in('inscripcion_id', borrar); if (error) throw error; }
         if (nuevos.length){ const {error} = await sb.from('comentarios_inscripcion').insert(nuevos); if (error) throw error; }
         for (const c of cambios){ const {error} = await sb.from('comentarios_inscripcion').update({comentario_en_id:c.en, observacion_es_id:c.es}).eq('inscripcion_id', c.id).eq('unidad', u); if (error) throw error; }
+        toast(`Guardado: ${nuevos.length} nuevo(s), ${cambios.length} cambiado(s), ${borrar.length} quitado(s).`, 'ok');
+        cargar();
+      } catch (e){ toast(traducir(e), 'mal'); b.disabled = false; }
+    };
+  };
+}
+
+/* ---------- Inasistencias ---------- */
+async function vistaInasistencias(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden,etiquetas_periodo'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const grupos = gp.map(x => ({...x, grado:gr[x.grado_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id]})).sort((a, b) => a.grado.orden - b.grado.orden || a.nom.localeCompare(b.nom));
+  if (!grupos.length){ M.innerHTML = '<div class="panel"><p>Aún no hay grupos creados para este año.</p></div>'; return; }
+  M.innerHTML = `<div class="panel"><h2>Inasistencias</h2>
+    <p class="mut">Escribe la cantidad de inasistencias de cada alumno en el periodo. Déjalo vacío si no hay dato. El total del año se suma solo en la boleta.</p>
+    <div class="sel"><label>Grado y sección<select id="ig"><option value="">Elegir…</option>${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label>
+    <label>Periodo<select id="iu" disabled></select></label></div></div><div id="itab"></div>`;
+  const grupoSel = () => grupos.find(x => String(x.id) === $('#ig').value);
+  $('#ig').onchange = () => {
+    const x = grupoSel();
+    $('#iu').innerHTML = x ? x.grado.etiquetas_periodo.map((e, i) => `<option value="${i + 1}">${esc(e)}</option>`).join('') : '';
+    $('#iu').disabled = !x; cargar();
+  };
+  $('#iu').onchange = () => cargar();
+  const cargar = async () => {
+    const x = grupoSel(), T = $('#itab'); if (!x){ T.innerHTML = ''; return; }
+    const u = Number($('#iu').value); T.innerHTML = '<p class="mut">Cargando alumnos…</p>';
+    const {data:ins, error} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', x.id);
+    if (error){ T.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
+    if (!ins.length){ T.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
+    const ids = ins.map(i => i.id);
+    const [ra, rc, re] = await Promise.all([
+      sb.from('alumnos').select('id,nombres,apellidos').in('id', ins.map(i => i.alumno_id)),
+      sb.from('inasistencias').select('inscripcion_id,unidad,cantidad').in('inscripcion_id', ids),
+      sb.from('unidades_estado').select('abierta').eq('anio_id', anio.id).eq('grado_id', x.grado_id).eq('unidad', u).maybeSingle()
+    ]);
+    const e0 = ra.error || rc.error || re.error;
+    if (e0){ T.innerHTML = `<p class="err">${esc(traducir(e0))}</p>`; return; }
+    const cerrada = !!re.data && re.data.abierta === false, bloqueada = cerrada && !DIR.includes(perfil.rol);
+    const ali = Object.fromEntries(ra.data.map(a => [a.id, a])), previo = {}, otras = {};
+    rc.data.forEach(c => { if (c.unidad === u) previo[c.inscripcion_id] = c; else otras[c.inscripcion_id] = (otras[c.inscripcion_id] || 0) + (Number(c.cantidad) || 0); });
+    const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a).sort((p, q) => (p.a.apellidos + p.a.nombres).localeCompare(q.a.apellidos + q.a.nombres));
+    T.innerHTML = `<div class="panel">${bloqueada ? '<p class="aviso">Este periodo está cerrado. Solo la dirección puede modificarlo.</p>' : ''}${bloqueada ? '' : '<div class="barra"><button class="btn" id="igd">Guardar</button></div>'}
+      <div class="scroll"><table><thead><tr><th>No.</th><th>Alumno</th><th>Inasistencias</th><th>Otros periodos</th></tr></thead><tbody>
+      ${filas.map((f, n) => { const v = previo[f.i.id]; return `<tr><td>${n + 1}</td><td>${esc(f.a.apellidos)}, ${esc(f.a.nombres)}</td><td><input class="num" type="number" min="0" max="365" step="1" data-i="${f.i.id}" value="${v ? esc(v.cantidad) : ''}" ${bloqueada ? 'disabled' : ''}></td><td>${otras[f.i.id] || ''}</td></tr>`; }).join('')}
+      </tbody></table></div></div>`;
+    if (bloqueada) return;
+    $('#igd').onclick = async () => {
+      const b = $('#igd'); b.disabled = true;
+      try {
+        const nuevos = [], cambios = [], borrar = [];
+        for (const f of filas){
+          const raw = T.querySelector(`input[data-i="${f.i.id}"]`).value.trim(), p = previo[f.i.id];
+          if (raw === ''){ if (p) borrar.push(f.i.id); continue; }
+          const n = Number(raw);
+          if (!Number.isInteger(n) || n < 0 || n > 365) throw new Error(`Valor no válido para ${f.a.apellidos}, ${f.a.nombres}: usa números enteros desde 0.`);
+          if (!p) nuevos.push({inscripcion_id:f.i.id, unidad:u, cantidad:n});
+          else if (Number(p.cantidad) !== n) cambios.push({id:f.i.id, n});
+        }
+        if (borrar.length){ const {error} = await sb.from('inasistencias').delete().eq('unidad', u).in('inscripcion_id', borrar); if (error) throw error; }
+        if (nuevos.length){ const {error} = await sb.from('inasistencias').insert(nuevos); if (error) throw error; }
+        for (const c of cambios){ const {error} = await sb.from('inasistencias').update({cantidad:c.n}).eq('inscripcion_id', c.id).eq('unidad', u); if (error) throw error; }
         toast(`Guardado: ${nuevos.length} nuevo(s), ${cambios.length} cambiado(s), ${borrar.length} quitado(s).`, 'ok');
         cargar();
       } catch (e){ toast(traducir(e), 'mal'); b.disabled = false; }
