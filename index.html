@@ -142,7 +142,7 @@ const MODULOS = [
   {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
   {id:'boletas',n:'Boletas',r:DIR,f:()=>vistaBoletas()},
-  {id:'comentarios',n:'Comentarios',r:DIR},
+  {id:'comentarios',n:'Comentarios',r:DIR,f:()=>vistaComentarios()},
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
   {id:'catalogo',n:'Asignaturas',r:['administrador'],f:()=>vistaCatalogo()},
   {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
@@ -211,7 +211,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-D</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-E</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -832,6 +832,92 @@ function vistaRespaldo(){
       st.innerHTML = `<span class="tag ok">Listo: respaldo descargado (${resumen.reduce((s, r) => s + r.Filas, 0)} filas en ${resumen.length} tablas).</span>`;
     } catch (e){ st.textContent = ''; toast(traducir(e), 'mal'); }
     b.disabled = false;
+  };
+}
+
+/* ---------- Comentarios ---------- */
+async function vistaComentarios(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const rs = await Promise.all([
+    sb.from('grados').select('id,nombre,orden,etiquetas_periodo,nivel_id'), sb.from('secciones').select('id,nombre'),
+    sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id), sb.from('niveles').select('id,nombre'),
+    sb.from('catalogo_comentarios').select('id,nivel,idioma,numero,texto,activo').order('numero')
+  ]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp, nv, cat] = rs.map(r => r.data), nvn = Object.fromEntries(nv.map(n => [n.id, n.nombre]));
+  const gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const grupos = gp.map(x => ({...x, grado:gr[x.grado_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], nido:nvn[gr[x.grado_id].nivel_id] === 'Preprimaria'}))
+    .sort((a, b) => a.grado.orden - b.grado.orden || a.nom.localeCompare(b.nom));
+  if (!grupos.length){ M.innerHTML = '<div class="panel"><p>Aún no hay grupos creados para este año.</p></div>'; return; }
+  M.innerHTML = `<div class="panel"><h2>Comentarios y observaciones</h2>
+    <p class="mut">Elige para cada alumno el comentario en inglés (Comments) y la observación en español. Si eliges uno, el otro con el mismo número se completa solo. En la boleta aparece lo del periodo más reciente que tenga datos.</p>
+    <div class="sel"><label>Grado y sección<select id="cg"><option value="">Elegir…</option>${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label>
+    <label>Periodo<select id="cu" disabled></select></label></div></div><div id="ctab"></div>`;
+  const grupoSel = () => grupos.find(x => String(x.id) === $('#cg').value);
+  $('#cg').onchange = () => {
+    const x = grupoSel();
+    $('#cu').innerHTML = x ? x.grado.etiquetas_periodo.map((e, i) => `<option value="${i + 1}">${esc(e)}</option>`).join('') : '';
+    $('#cu').disabled = !x; cargar();
+  };
+  $('#cu').onchange = () => cargar();
+  const cargar = async () => {
+    const x = grupoSel(), T = $('#ctab'); if (!x){ T.innerHTML = ''; return; }
+    const u = Number($('#cu').value); T.innerHTML = '<p class="mut">Cargando alumnos…</p>';
+    const {data:ins, error} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', x.id);
+    if (error){ T.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
+    if (!ins.length){ T.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
+    const [ra, rc] = await Promise.all([
+      sb.from('alumnos').select('id,nombres,apellidos').in('id', ins.map(i => i.alumno_id)),
+      sb.from('comentarios_inscripcion').select('inscripcion_id,unidad,comentario_en_id,observacion_es_id').eq('unidad', u).in('inscripcion_id', ins.map(i => i.id))
+    ]);
+    if (ra.error || rc.error){ T.innerHTML = `<p class="err">${esc(traducir(ra.error || rc.error))}</p>`; return; }
+    const ali = Object.fromEntries(ra.data.map(a => [a.id, a])), previo = Object.fromEntries(rc.data.map(c => [c.inscripcion_id, c]));
+    const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a).sort((p, q) => (p.a.apellidos + p.a.nombres).localeCompare(q.a.apellidos + q.a.nombres));
+    const lista = idioma => cat.filter(c => c.idioma === idioma && (c.activo || false) && ((norm(c.nivel) === 'preprimaria') === x.nido));
+    const ops = idioma => lista(idioma).map(c => `<option value="${c.id}" data-n="${c.numero}">${c.numero}. ${esc(c.texto.length > 95 ? c.texto.slice(0, 95) + '…' : c.texto)}</option>`).join('');
+    const opEn = ops('en'), opEs = ops('es');
+    if (!opEn && !opEs){ T.innerHTML = '<div class="panel"><p>No hay observaciones cargadas para este nivel. El administrador puede subirlas en el módulo Asignaturas.</p></div>'; return; }
+    const sel = (cls, id, opts, v) => `<select class="${cls}" data-i="${id}"><option value="">—</option>${opts.replace(`value="${v}"`, `value="${v}" selected`)}</select>`;
+    T.innerHTML = `<div class="panel"><div class="barra"><button class="btn sec" id="cll">Completar vacíos con el mismo comentario…</button><button class="btn" id="cgd">Guardar</button></div>
+      <div id="cmasa" class="barra" hidden><select id="mEn"><option value="">Comments (inglés)</option>${opEn}</select><select id="mEs"><option value="">Observación (español)</option>${opEs}</select><button class="btn sec" id="mok">Aplicar a los vacíos</button></div>
+      <div class="scroll"><table><thead><tr><th>No.</th><th>Alumno</th><th>Comments (inglés)</th><th>Observación (español)</th></tr></thead><tbody>
+      ${filas.map((f, n) => { const p = previo[f.i.id] || {}; return `<tr><td>${n + 1}</td><td>${esc(f.a.apellidos)}, ${esc(f.a.nombres)}</td><td>${sel('ce', f.i.id, opEn, p.comentario_en_id)}</td><td>${sel('co', f.i.id, opEs, p.observacion_es_id)}</td></tr>`; }).join('')}
+      </tbody></table></div></div>`;
+    const enlazar = (desde, hacia) => T.querySelectorAll('select.' + desde).forEach(e => e.onchange = () => {
+      const o = e.selectedOptions[0], par = T.querySelector(`select.${hacia}[data-i="${e.dataset.i}"]`);
+      if (!o || !o.dataset.n || !par || par.value) return;
+      const m = [...par.options].find(z => z.dataset.n === o.dataset.n); if (m) par.value = m.value;
+    });
+    enlazar('ce', 'co'); enlazar('co', 'ce');
+    $('#cll').onclick = () => { $('#cmasa').hidden = !$('#cmasa').hidden; };
+    $('#mEn').onchange = () => { const o = $('#mEn').selectedOptions[0]; if (o && o.dataset.n && !$('#mEs').value){ const m = [...$('#mEs').options].find(z => z.dataset.n === o.dataset.n); if (m) $('#mEs').value = m.value; } };
+    $('#mEs').onchange = () => { const o = $('#mEs').selectedOptions[0]; if (o && o.dataset.n && !$('#mEn').value){ const m = [...$('#mEn').options].find(z => z.dataset.n === o.dataset.n); if (m) $('#mEn').value = m.value; } };
+    $('#mok').onclick = () => {
+      T.querySelectorAll('select.ce').forEach(e => { if (!e.value && $('#mEn').value) e.value = $('#mEn').value; });
+      T.querySelectorAll('select.co').forEach(e => { if (!e.value && $('#mEs').value) e.value = $('#mEs').value; });
+      toast('Aplicado. Revisa y pulsa Guardar.', 'ok');
+    };
+    $('#cgd').onclick = async () => {
+      const b = $('#cgd'); b.disabled = true;
+      try {
+        const nuevos = [], cambios = [], borrar = [];
+        filas.forEach(f => {
+          const en = T.querySelector(`select.ce[data-i="${f.i.id}"]`).value || null, es = T.querySelector(`select.co[data-i="${f.i.id}"]`).value || null, p = previo[f.i.id];
+          if (p){
+            if (!en && !es) borrar.push(f.i.id);
+            else if (String(p.comentario_en_id ?? '') !== String(en ?? '') || String(p.observacion_es_id ?? '') !== String(es ?? '')) cambios.push({id:f.i.id, en, es});
+          } else if (en || es) nuevos.push({inscripcion_id:f.i.id, unidad:u, comentario_en_id:en, observacion_es_id:es});
+        });
+        if (borrar.length){ const {error} = await sb.from('comentarios_inscripcion').delete().eq('unidad', u).in('inscripcion_id', borrar); if (error) throw error; }
+        if (nuevos.length){ const {error} = await sb.from('comentarios_inscripcion').insert(nuevos); if (error) throw error; }
+        for (const c of cambios){ const {error} = await sb.from('comentarios_inscripcion').update({comentario_en_id:c.en, observacion_es_id:c.es}).eq('inscripcion_id', c.id).eq('unidad', u); if (error) throw error; }
+        toast(`Guardado: ${nuevos.length} nuevo(s), ${cambios.length} cambiado(s), ${borrar.length} quitado(s).`, 'ok');
+        cargar();
+      } catch (e){ toast(traducir(e), 'mal'); b.disabled = false; }
+    };
   };
 }
 
