@@ -146,6 +146,7 @@ const MODULOS = [
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
   {id:'catalogo',n:'Asignaturas',r:['administrador'],f:()=>vistaCatalogo()},
   {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
+  {id:'respaldo',n:'Respaldo',r:['administrador'],f:()=>vistaRespaldo()},
   {id:'usuarios',n:'Usuarios',r:['administrador'],f:()=>vistaUsuarios()},
   {id:'bitacora',n:'Bitácora',r:['administrador','director']}
 ];
@@ -210,7 +211,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-C</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-D</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -791,6 +792,47 @@ async function aplicarAsignaturas(buenas, total){
     await sb.from('importaciones').insert({usuario_id:perfil.id, tipo:'asignaturas', filas_ok:buenas.length, filas_error:total - buenas.length});
     $('#aprev').innerHTML = `<p class="tag ok">Listo: ${buenas.length} asignatura(s) procesadas (${nu.length} nuevas).</p>`;
   } catch (e){ toast(traducir(e), 'mal'); go.disabled = false; go.textContent = 'Aplicar cambios'; }
+}
+
+/* ---------- Respaldo ---------- */
+const TABLAS_RESPALDO = ['anios_escolares','niveles','grados','secciones','grupos','alumnos','inscripciones','asignaturas','asignatura_componentes','asignaciones_docente','unidades_estado','evaluaciones','calificaciones','pma','inasistencias','catalogo_comentarios','comentarios_inscripcion','perfiles'];
+async function traerTodo(t, avance){
+  const out = [], paso = 1000; let orden = true;
+  for (let i = 0; ; i += paso){
+    let q = sb.from(t).select('*'); if (orden) q = q.order('id');
+    let {data, error} = await q.range(i, i + paso - 1);
+    if (error && orden && i === 0){ orden = false; ({data, error} = await sb.from(t).select('*').range(i, i + paso - 1)); }
+    if (error) throw new Error(t + ': ' + (error.message || error));
+    out.push(...data); avance(out.length);
+    if (data.length < paso) break;
+  }
+  return out;
+}
+function vistaRespaldo(){
+  const M = $('#main');
+  M.innerHTML = `<div class="panel"><h2>Respaldo de la base de datos</h2>
+    <p class="mut">Descarga un archivo de Excel con una copia de todas las tablas (alumnos, inscripciones, asignaturas, evaluaciones, calificaciones, inasistencias, comentarios, usuarios y más). Guárdalo en un lugar seguro, por ejemplo Google Drive, al cerrar cada unidad y cada año escolar. La cuenta gratuita no hace copias automáticas.</p>
+    <div class="barra"><button class="btn" id="rbk">Descargar respaldo (Excel)</button></div><p id="rst" class="mut"></p></div>`;
+  $('#rbk').onclick = async () => {
+    if (typeof XLSX === 'undefined') return toast('No se pudo cargar el lector de Excel. Revisa tu internet y recarga la página.', 'mal');
+    const b = $('#rbk'), st = $('#rst'); b.disabled = true;
+    try {
+      const wb = XLSX.utils.book_new(), resumen = [];
+      for (let k = 0; k < TABLAS_RESPALDO.length; k++){
+        const t = TABLAS_RESPALDO[k];
+        const filas = await traerTodo(t, n => st.textContent = `Descargando ${t} (${k + 1} de ${TABLAS_RESPALDO.length}): ${n} fila(s)…`);
+        const limpias = filas.map(f => Object.fromEntries(Object.entries(f).map(([c, v]) => [c, v !== null && typeof v === 'object' ? JSON.stringify(v) : v])));
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(limpias), t.slice(0, 31));
+        resumen.push({Tabla:t, Filas:filas.length});
+      }
+      const hoy = new Date().toISOString().slice(0, 10);
+      const rs = XLSX.utils.json_to_sheet([{Tabla:'Respaldo del ' + hoy, Filas:''}, ...resumen]);
+      XLSX.utils.book_append_sheet(wb, rs, 'Resumen'); wb.SheetNames.unshift(wb.SheetNames.pop());
+      XLSX.writeFile(wb, `respaldo_campo_real_${hoy}.xlsx`);
+      st.innerHTML = `<span class="tag ok">Listo: respaldo descargado (${resumen.reduce((s, r) => s + r.Filas, 0)} filas en ${resumen.length} tablas).</span>`;
+    } catch (e){ st.textContent = ''; toast(traducir(e), 'mal'); }
+    b.disabled = false;
+  };
 }
 
 iniciar();
