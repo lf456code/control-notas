@@ -58,7 +58,7 @@ input.nota:disabled{background:#eef2f1;color:var(--mut)}
 .login form{width:min(24rem,100%);display:grid;gap:.9rem;text-align:center;background:#fff;border-radius:12px;padding:2rem 1.6rem}
 .login label{text-align:left}
 input.num{width:5.5rem;padding:.45rem .5rem;border:1px solid var(--line);border-radius:8px;text-align:center;background:#fff}
-.lst{height:auto;min-height:11in;padding:.6in .7in}.lst .llogo{display:block;margin:0 auto .06in;height:.75in}.lst h3{margin:.08in 0;font-size:15pt;color:#135051}.lst p{margin:.03in 0}.lst table{margin-top:.15in;font-size:10pt}.lst th,.lst td{border:1px solid #bbb;padding:.03in .07in;text-align:left}.lst th{background:#135051;color:#fff}
+.lst{height:auto;min-height:11in;padding:.6in .7in}.lst .lhead{display:flex;align-items:center;justify-content:space-between;gap:.2in}.lst .ltxt{flex:1}.lst .llogo{height:.75in;flex:none}.lst h3{margin:.08in 0;font-size:15pt;color:#135051}.lst p{margin:.03in 0}.lst table{margin-top:.15in;font-size:10pt}.lst th,.lst td{border:1px solid #bbb;padding:.03in .07in;text-align:left}.lst th{background:#135051;color:#fff}
 #toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
 #toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
 table.n input.nota{width:4.8rem}
@@ -1057,7 +1057,7 @@ async function vistaListados(){
     try {
       const filas = await traer(x), hoy = new Date().toLocaleDateString('es-GT');
       B.innerHTML = `<div class="barra no-print"><button class="btn" id="lxl">Descargar Excel</button><button class="btn sec" id="lim">Imprimir o guardar como PDF</button></div>
-        <div class="boleta lst"><img class="llogo" src="${x.nido ? 'logo-nido.png' : esc(CONFIG.LOGO)}" alt="" onerror="this.remove()"><h3>Colegio Bilingüe Campo Real</h3><p><b>Listado oficial de alumnos</b></p><p>${esc(x.gn)} · Sección ${esc(x.sn)} · Año escolar ${esc(anio.nombre)}</p><p>Total de alumnos: ${filas.length} · Fecha: ${esc(hoy)}</p>
+        <div class="boleta lst"><div class="lhead"><div class="ltxt"><h3>Colegio Bilingüe Campo Real</h3><p><b>Listado oficial de alumnos</b></p><p>${esc(x.gn)} · Sección ${esc(x.sn)} · Año escolar ${esc(anio.nombre)}</p><p>Total de alumnos: ${filas.length} · Fecha: ${esc(hoy)}</p></div><img class="llogo" src="${x.nido ? 'logo-nido.png' : esc(CONFIG.LOGO)}" alt="" onerror="this.remove()"></div>
         <table><thead><tr><th>No.</th><th>Clave</th><th>Apellidos</th><th>Nombres</th></tr></thead><tbody>${filas.map(f => `<tr><td>${f['No.']}</td><td>${esc(f.Clave)}</td><td>${esc(f.Apellidos)}</td><td>${esc(f.Nombres)}</td></tr>`).join('')}</tbody></table></div>`;
       $('#lxl').onclick = () => typeof XLSX === 'undefined' ? toast('No se pudo cargar el lector de Excel. Recarga la página.', 'mal') : bajarXlsx(filas, x.nom.slice(0, 31), `listado_${x.nom.replace(/\s+/g, '_')}.xlsx`);
       $('#lim').onclick = () => window.print();
