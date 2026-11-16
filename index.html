@@ -211,14 +211,16 @@ async function entrar(user){
   const {data:p} = await sb.from('perfiles').select('*').eq('id', user.id).maybeSingle();
   if (!p || !p.activo){ await sb.auth.signOut(); return vistaLogin('Tu usuario no tiene un perfil activo. Habla con el administrador.'); }
   perfil = p;
+  const {data:pm} = await sb.from('permisos_modulo').select('modulo,nivel').eq('perfil_id', user.id);
+  perfil.permisos = Object.fromEntries((pm || []).map(x => [x.modulo, x.nivel]));
   const {data:a} = await sb.from('anios_escolares').select('*').eq('activo', true).maybeSingle();
   anio = a;
   vistaApp();
 }
 
 function vistaApp(){
-  const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-C</small></div>
+  const mods = MODULOS.filter(m => m.r.includes(perfil.rol) && (perfil.rol === 'administrador' || (perfil.permisos || {})[m.id] !== 'ninguno'));
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-D</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -229,6 +231,21 @@ function vistaApp(){
 function ir(id){
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.m === id));
   MODULOS.find(m => m.id === id).f();
+  modoLectura(id);
+}
+/* Módulo en solo lectura: aviso arriba y controles de edición apagados (la base de datos también lo bloquea) */
+let _obs = null;
+function modoLectura(id){
+  if (_obs){ _obs.disconnect(); _obs = null; }
+  if (perfil.rol === 'administrador' || (perfil.permisos || {})[id] !== 'lectura') return;
+  const main = $('#main'), RO = /guardar|agregar|quitar|eliminar|borrar|subir|registrar|marcar|aplicar|abrir|cerrar|importar|restaurar|cargar|crear|añadir|actualizar/i;
+  const aplicar = () => {
+    if (!main.querySelector('.rolec')) main.insertAdjacentHTML('afterbegin', '<div class="panel rolec"><b>Solo lectura:</b> puedes consultar este módulo, pero no modificarlo.</div>');
+    main.querySelectorAll('input.nota, input.num, input[type=file], textarea, table select, table input').forEach(e => e.disabled = true);
+    main.querySelectorAll('button').forEach(b => { if (RO.test(b.textContent)) b.disabled = true; });
+  };
+  _obs = new MutationObserver(() => { _obs.disconnect(); aplicar(); _obs.observe(main, {childList:true, subtree:true}); });
+  aplicar(); _obs.observe(main, {childList:true, subtree:true});
 }
 
 /* ---------- Notas ---------- */
@@ -499,8 +516,8 @@ async function vistaUsuarios(){
     <div class="sel"><label>Correo<input class="txt" id="uc"></label><label>Nombres<input class="txt" id="un"></label><label>Apellidos<input class="txt" id="up"></label><label>Rol<select id="ur">${opc('docente')}</select></label></div>
     <p class="mut">Grados que atiende (coordinadores y docentes). Sin marcar = todos los grados.</p><div id="ugn"></div>
     <button class="btn pie" id="ua">Registrar usuario</button></div>
-    <div class="panel"><h3>${data.length} usuario(s)</h3><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Grados</th><th>Estado</th></tr></thead><tbody>
-    ${data.map(u => `<tr><td>${esc(u.apellidos)}, ${esc(u.nombres)}</td><td>${esc(u.correo)}</td><td><select data-r="${u.id}">${opc(u.rol)}</select></td><td>${esc(resumenGrados(u.grados_ids, g0))} <button class="btn sec" data-g="${u.id}">Cambiar</button></td><td><button class="tag ${u.activo ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`).join('')}</tbody></table></div></div><div id="ugp"></div>`;
+    <div class="panel"><h3>${data.length} usuario(s)</h3><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Grados</th><th>Módulos</th><th>Estado</th></tr></thead><tbody>
+    ${data.map(u => `<tr><td>${esc(u.apellidos)}, ${esc(u.nombres)}</td><td>${esc(u.correo)}</td><td><select data-r="${u.id}">${opc(u.rol)}</select></td><td>${esc(resumenGrados(u.grados_ids, g0))} <button class="btn sec" data-g="${u.id}">Cambiar</button></td><td><button class="btn sec" data-p="${u.id}">Permisos</button></td><td><button class="tag ${u.activo ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`).join('')}</tbody></table></div></div><div id="ugp"></div>`;
   const getNuevos = selGrados($('#ugn'), [], g0, nv0);
   $('#ua').onclick = async () => {
     const v = id => $('#' + id).value.trim();
@@ -509,6 +526,26 @@ async function vistaUsuarios(){
     if (error) return toast(traducir(error), 'mal');
     toast('Usuario registrado.', 'ok'); vistaUsuarios();
   };
+  M.querySelectorAll('button[data-p]').forEach(b => b.onclick = async () => {
+    const u = data.find(x => x.id === b.dataset.p), H = $('#ugp');
+    if (u.rol === 'administrador'){ toast('El administrador siempre tiene acceso total.', 'mal'); return; }
+    const {data:pm, error} = await sb.from('permisos_modulo').select('modulo,nivel').eq('perfil_id', u.id);
+    if (error) return toast(traducir(error), 'mal');
+    const act = Object.fromEntries((pm || []).map(x => [x.modulo, x.nivel]));
+    const LEC = {notas:1, inasistencias:1, unidades:1, solvencia:1, comentarios:1, asignaciones:1, boletas:0, listados:0, maestros:0};
+    const mods = MODULOS.filter(m => m.id in LEC && m.f && m.r.includes(u.rol));
+    H.innerHTML = `<div class="panel"><h3>Módulos de ${esc(u.apellidos)}, ${esc(u.nombres)} (${esc(ROLES[u.rol])})</h3><p class="mut">Solo aparecen los módulos que su rol permite. Aquí puedes dejar uno en solo lectura o quitarlo.</p>
+      <div class="scroll"><table><thead><tr><th>Módulo</th><th>Acceso</th></tr></thead><tbody>${mods.map(m => `<tr><td>${esc(m.n)}</td><td><select data-pm="${m.id}"><option value="">${LEC[m.id] ? 'Edición (según su rol)' : 'Con acceso'}</option>${LEC[m.id] ? `<option value="lectura" ${act[m.id] === 'lectura' ? 'selected' : ''}>Solo lectura</option>` : ''}<option value="ninguno" ${act[m.id] === 'ninguno' ? 'selected' : ''}>Sin acceso</option></select></td></tr>`).join('')}</tbody></table></div>
+      <button class="btn pie" id="upg">Guardar módulos</button></div>`;
+    $('#upg').onclick = async () => {
+      const filas = [...H.querySelectorAll('select[data-pm]')].filter(x => x.value).map(x => ({perfil_id:u.id, modulo:x.dataset.pm, nivel:x.value}));
+      let r = await sb.from('permisos_modulo').delete().eq('perfil_id', u.id);
+      if (!r.error && filas.length) r = await sb.from('permisos_modulo').insert(filas);
+      if (r.error) return toast(traducir(r.error), 'mal');
+      toast('Módulos guardados. La persona los verá al volver a entrar.', 'ok');
+    };
+    H.scrollIntoView({behavior:'smooth'});
+  });
   M.querySelectorAll('button[data-g]').forEach(b => b.onclick = () => {
     const u = data.find(x => x.id === b.dataset.g), H = $('#ugp');
     H.innerHTML = `<div class="panel"><h3>Grados de ${esc(u.apellidos)}, ${esc(u.nombres)}</h3><p class="mut">Sin marcar = todos los grados.</p><div id="ugs"></div><button class="btn pie" id="ugg">Guardar grados</button></div>`;
