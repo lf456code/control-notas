@@ -151,6 +151,7 @@ const MODULOS = [
   {id:'catalogo',n:'Asignaturas',r:['administrador'],f:()=>vistaCatalogo()},
   {id:'asignaciones',n:'Asignaciones',r:['administrador','coordinador'],f:()=>vistaAsignaciones()},
   {id:'maestros',n:'Maestros',r:DIR,f:()=>vistaMaestros()},
+  {id:'correos',n:'Correos',r:DIR,f:()=>vistaCorreos()},
   {id:'actitudinales',n:'Actitudinales',r:[...DIR,'subcoordinador','docente'],f:()=>vistaActitudinales()},
   {id:'respaldo',n:'Respaldo',r:['administrador'],f:()=>vistaRespaldo()},
   {id:'usuarios',n:'Usuarios',r:['administrador'],f:()=>vistaUsuarios()},
@@ -221,7 +222,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol) && (perfil.rol === 'administrador' || (perfil.permisos || {})[m.id] !== 'ninguno'));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-F</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-G</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -474,21 +475,32 @@ async function vistaUnidades(){
   const M = $('#main');
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
-  const [g, u] = await Promise.all([
+  const [g, u, ev] = await Promise.all([
     sb.from('grados').select('id,nombre,orden').order('orden'),
-    sb.from('unidades_estado').select('grado_id,unidad,abierta').eq('anio_id', anio.id)
+    sb.from('unidades_estado').select('grado_id,unidad,abierta').eq('anio_id', anio.id),
+    sb.from('envio_boletas').select('grado_id,unidad,habilitado').eq('anio_id', anio.id)
   ]);
-  const fallo = [g, u].find(r => r.error);
+  const fallo = [g, u, ev].find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
   const est = Object.fromEntries(u.data.map(x => [x.grado_id + ':' + x.unidad, x.abierta]));
   const mios = perfil.rol === 'coordinador' && perfil.grados_ids && perfil.grados_ids.length;
   if (mios) g.data = g.data.filter(x => perfil.grados_ids.includes(x.id));
-  const U = [1, 2, 3, 4];
+  const U = [1, 2, 3, 4], habil = Object.fromEntries(ev.data.map(x => [x.grado_id + ':' + x.unidad, x.habilitado]));
   M.innerHTML = `<div class="panel"><h2>Abrir y cerrar unidades</h2><p class="mut">Con la unidad abierta, los maestros capturan y corrigen notas. Al cerrarla, solo la dirección puede cambiarlas.</p>
     <div class="scroll"><table><thead><tr><th>Grado</th>${U.map(k => `<th>Unidad ${k}</th>`).join('')}</tr></thead><tbody>
     <tr><td><b>${mios ? 'Todos mis grados' : 'Todos los grados'}</b></td>${U.map(k => `<td><button class="btn sec" data-k="${k}" data-a="0">Cerrar</button> <button class="btn sec" data-k="${k}" data-a="1">Abrir</button></td>`).join('')}</tr>
     ${g.data.map(x => `<tr><td>${esc(x.nombre)}</td>${U.map(k => { const ab = est[x.id + ':' + k] !== false; return `<td><button class="tag ${ab ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-g="${x.id}" data-k="${k}" data-a="${ab ? 0 : 1}" title="Clic para ${ab ? 'cerrar' : 'abrir'}">${ab ? 'Abierta' : 'Cerrada'}</button></td>`; }).join('')}</tr>`).join('')}
+    </tbody></table></div></div>
+    <div class="panel"><h2>Envío de boletas por correo</h2><p class="mut">Cuando habilitas una unidad en un grado, los maestros encargados de ese grado ven el botón para enviar las boletas. Si la deshabilitas, desaparece.</p>
+    <div class="scroll"><table><thead><tr><th>Grado</th>${U.map(k => `<th>Unidad ${k}</th>`).join('')}</tr></thead><tbody>
+    ${g.data.map(x => `<tr><td>${esc(x.nombre)}</td>${U.map(k => { const h = !!habil[x.id + ':' + k]; return `<td><button class="tag ${h ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-env="${x.id}:${k}" title="Clic para ${h ? 'deshabilitar' : 'habilitar'}">${h ? 'Habilitado' : 'No habilitado'}</button></td>`; }).join('')}</tr>`).join('')}
     </tbody></table></div></div>`;
+  M.querySelectorAll('button[data-env]').forEach(b => b.onclick = async () => {
+    const [gid, k] = b.dataset.env.split(':').map(Number), nuevo = !habil[gid + ':' + k];
+    const {error} = await sb.from('envio_boletas').upsert({anio_id:anio.id, grado_id:gid, unidad:k, habilitado:nuevo});
+    if (error) return toast(traducir(error), 'mal');
+    toast(nuevo ? 'Envío habilitado.' : 'Envío deshabilitado.', 'ok'); vistaUnidades();
+  });
   M.querySelectorAll('button[data-k]').forEach(b => b.onclick = async () => {
     const k = +b.dataset.k, abrir = b.dataset.a === '1', todos = b.dataset.g === undefined;
     if (!confirm(`¿${abrir ? 'Abrir' : 'Cerrar'} la Unidad ${k}${todos ? (mios ? ' en todos tus grados' : ' en TODOS los grados') : ''}?`)) return;
@@ -643,6 +655,57 @@ async function vistaAsignaciones(){
     });
   };
   $('#sd').onchange = pintar;
+}
+
+/* ---------- Correos de las familias ---------- */
+async function vistaCorreos(){
+  const M = $('#main');
+  if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
+  M.innerHTML = '<p class="mut">Cargando…</p>';
+  const rs = await Promise.all([sb.from('grados').select('id,nombre'), sb.from('secciones').select('id,nombre'), gruposAnio('id,grado_id,seccion_id'),
+    sb.from('inscripciones').select('alumno_id,grupo_id').eq('anio_id', anio.id), sb.from('alumnos').select('id,clave,nombres,apellidos').eq('activo', true).order('apellidos'),
+    sb.from('correos_familia').select('alumno_id,correo1,correo2')]);
+  const fallo = rs.find(r => r.error);
+  if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
+  const [g, s, gp, ins, al0, cf] = rs.map(r => r.data);
+  const gn = Object.fromEntries(g.map(x => [x.id, x.nombre])), sn = Object.fromEntries(s.map(x => [x.id, x.nombre]));
+  const gpn = Object.fromEntries(gp.map(x => [x.id, gn[x.grado_id] + ' ' + sn[x.seccion_id]])), gal = Object.fromEntries(ins.filter(x => gpn[x.grupo_id]).map(x => [x.alumno_id, gpn[x.grupo_id]]));
+  const al = al0.filter(a => gal[a.id]), cm = Object.fromEntries(cf.map(x => [x.alumno_id, x]));
+  const con = al.filter(a => cm[a.id] && (cm[a.id].correo1 || cm[a.id].correo2)).length;
+  M.innerHTML = `<div class="panel"><h2>Correos de las familias</h2><p class="mut">${al.length} alumno(s) inscritos este año; <b>${con}</b> con correo registrado. Descarga el Excel, escribe los correos en las columnas <b>Correo 1</b> y <b>Correo 2</b> (el segundo es opcional) y súbelo de nuevo. Los correos en blanco no borran los que ya existen.</p>
+    <div class="barra"><button class="btn sec" id="cdl">Descargar Excel</button><input type="file" id="cup" accept=".xlsx,.xls,.csv"></div><div id="cprev"></div></div>`;
+  const sinLector = () => typeof XLSX === 'undefined' && (toast('No se pudo cargar el lector de Excel. Recarga la página.', 'mal'), true);
+  $('#cdl').onclick = () => { if (sinLector()) return; bajarXlsx(al.map(a => ({Clave:a.clave, Apellidos:a.apellidos, Nombres:a.nombres, Grado:gal[a.id], 'Correo 1':(cm[a.id] || {}).correo1 || '', 'Correo 2':(cm[a.id] || {}).correo2 || ''})), 'Correos', 'correos_familia.xlsx'); };
+  const OK = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+  $('#cup').onchange = async ev => {
+    const f = ev.target.files[0]; if (!f || sinLector()) return; const P = $('#cprev');
+    const sinCeros = c => String(c).trim().replace(/^0+(?=.)/, ''), porClave = new Map(); al.forEach(a => { porClave.set(String(a.clave).trim(), a); porClave.set(sinCeros(a.clave), a); });
+    const cambios = [], err = [], vistas = new Set();
+    (await leerXlsx(f)).forEach((r, n) => {
+      const lin = n + 2, clave = String(r.clave ?? '').trim(), c1 = String(r['correo 1'] ?? r.correo1 ?? r.correo ?? '').trim().toLowerCase(), c2 = String(r['correo 2'] ?? r.correo2 ?? '').trim().toLowerCase();
+      if (!clave || (!c1 && !c2)) return;
+      const a = porClave.get(clave) || porClave.get(sinCeros(clave));
+      if (!a) return err.push(`Fila ${lin}: la clave ${clave} no está entre tus alumnos inscritos.`);
+      if (vistas.has(a.id)) return err.push(`Fila ${lin}: la clave ${clave} está repetida.`);
+      if ((c1 && !OK.test(c1)) || (c2 && !OK.test(c2))) return err.push(`Fila ${lin} (${clave}): revisa que el correo esté bien escrito.`);
+      vistas.add(a.id); const o = cm[a.id] || {};
+      if ((c1 || o.correo1 || null) === (o.correo1 || null) && (c2 || o.correo2 || null) === (o.correo2 || null)) return;
+      cambios.push({alumno_id:a.id, correo1:c1 || o.correo1 || null, correo2:c2 || o.correo2 || null});
+    });
+    P.innerHTML = `<p><b>${cambios.length}</b> alumno(s) con correo nuevo o cambiado${err.length ? `, <b>${err.length}</b> fila(s) con problemas` : ''}.</p>
+      ${err.length ? `<div class="aviso">${err.slice(0, 15).map(esc).join('<br>')}${err.length > 15 ? '<br>…' : ''}<br>Esas filas no se aplican. Puedes corregirlas y volver a subir el archivo.</div>` : ''}
+      ${cambios.length ? '<button class="btn pie" id="cgo">Guardar correos</button>' : ''}`;
+    if (!cambios.length) return;
+    $('#cgo').onclick = async () => {
+      $('#cgo').disabled = true; let fallos = 0, ult = '';
+      for (let i = 0; i < cambios.length; i += 100){
+        const {error} = await sb.from('correos_familia').upsert(cambios.slice(i, i + 100));
+        if (error){ fallos++; ult = traducir(error); }
+      }
+      fallos ? toast(ult, 'mal') : toast('Correos guardados.', 'ok');
+      vistaCorreos();
+    };
+  };
 }
 
 /* ---------- Actitudinales (Preprimaria): solo la literal por alumno ---------- */
