@@ -149,13 +149,16 @@ const MODULOS = [
   {id:'comentarios',n:'Comentarios',r:DIR,f:()=>vistaComentarios()},
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
   {id:'catalogo',n:'Asignaturas',r:['administrador'],f:()=>vistaCatalogo()},
-  {id:'asignaciones',n:'Asignaciones',r:DIR,f:()=>vistaAsignaciones()},
+  {id:'asignaciones',n:'Asignaciones',r:['administrador','coordinador'],f:()=>vistaAsignaciones()},
+  {id:'maestros',n:'Maestros',r:DIR,f:()=>vistaMaestros()},
   {id:'respaldo',n:'Respaldo',r:['administrador'],f:()=>vistaRespaldo()},
   {id:'usuarios',n:'Usuarios',r:['administrador'],f:()=>vistaUsuarios()},
   {id:'bitacora',n:'Bitácora',r:['administrador','director']}
 ];
 
 const $ = (s,e=document) => e.querySelector(s);
+/* Grupos del año activo; un coordinador con grados asignados solo ve los suyos */
+const gruposAnio = cols => { const q = sb.from('grupos').select(cols).eq('anio_id', anio.id); return (perfil.rol === 'coordinador' && perfil.grados_ids && perfil.grados_ids.length) ? q.in('grado_id', perfil.grados_ids) : q; };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let sb, perfil, anio;
 
@@ -215,7 +218,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-B</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-C</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -237,7 +240,7 @@ async function vistaNotas(){
   const rs = await Promise.all([
     sb.from('grados').select('*').order('orden'),
     sb.from('secciones').select('*'),
-    sb.from('grupos').select('*').eq('anio_id', anio.id),
+    gruposAnio('*'),
     sb.from('asignaturas').select('id,grado_id,nombre,orden,escala').eq('es_calculada', false).eq('activa', true).order('orden'),
     doc ? sb.from('asignaciones_docente').select('grupo_id,asignatura_id') : Promise.resolve({data:[]})
   ]);
@@ -477,24 +480,46 @@ async function vistaUnidades(){
 }
 
 /* ---------- Usuarios ---------- */
+/* Casillas de grados con atajos por nivel. Sin marcar = todos los grados. Devuelve una función que da los ids marcados. */
+function selGrados(host, sel, g, nv){
+  host.innerHTML = `<div class="barra">${nv.map(x => `<button type="button" class="btn sec" data-n="${x.id}">${esc(x.nombre)}</button>`).join('')}<button type="button" class="btn sec" data-n="0">Todos (quitar marcas)</button></div>
+    <div style="display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin:.5rem 0">${g.map(x => `<label style="display:inline-flex;align-items:center;gap:.3rem"><input type="checkbox" value="${x.id}" ${sel.includes(x.id) ? 'checked' : ''}> ${esc(x.nombre)}</label>`).join('')}</div>`;
+  host.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => host.querySelectorAll('input').forEach(i => { const gr = g.find(x => String(x.id) === i.value); i.checked = b.dataset.n !== '0' && String(gr.nivel_id) === b.dataset.n; }));
+  return () => [...host.querySelectorAll('input:checked')].map(i => +i.value);
+}
+const resumenGrados = (ids, g) => (!ids || !ids.length || ids.length >= g.length) ? 'Todos' : g.filter(x => ids.includes(x.id)).map(x => x.nombre).join(', ');
+
 async function vistaUsuarios(){
   const M = $('#main'); M.innerHTML = '<p class="mut">Cargando…</p>';
-  const {data, error} = await sb.rpc('lista_usuarios');
+  const [{data, error}, {data:g0}, {data:nv0}] = await Promise.all([sb.rpc('lista_usuarios'), sb.from('grados').select('id,nombre,orden,nivel_id').order('orden'), sb.from('niveles').select('id,nombre').order('id')]);
   if (error){ M.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
   const opc = (sel) => Object.entries(ROLES).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
   M.innerHTML = `<div class="panel"><h2>Usuarios</h2>
     <p class="mut">Para agregar a alguien: 1) créalo en Supabase (Authentication, Users, Add user, con correo y contraseña, marcando Auto Confirm User); 2) regístralo aquí con el mismo correo.</p>
     <div class="sel"><label>Correo<input class="txt" id="uc"></label><label>Nombres<input class="txt" id="un"></label><label>Apellidos<input class="txt" id="up"></label><label>Rol<select id="ur">${opc('docente')}</select></label></div>
+    <p class="mut">Grados que atiende (coordinadores y docentes). Sin marcar = todos los grados.</p><div id="ugn"></div>
     <button class="btn pie" id="ua">Registrar usuario</button></div>
-    <div class="panel"><h3>${data.length} usuario(s)</h3><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th></tr></thead><tbody>
-    ${data.map(u => `<tr><td>${esc(u.apellidos)}, ${esc(u.nombres)}</td><td>${esc(u.correo)}</td><td><select data-r="${u.id}">${opc(u.rol)}</select></td><td><button class="tag ${u.activo ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`).join('')}</tbody></table></div></div>`;
+    <div class="panel"><h3>${data.length} usuario(s)</h3><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Grados</th><th>Estado</th></tr></thead><tbody>
+    ${data.map(u => `<tr><td>${esc(u.apellidos)}, ${esc(u.nombres)}</td><td>${esc(u.correo)}</td><td><select data-r="${u.id}">${opc(u.rol)}</select></td><td>${esc(resumenGrados(u.grados_ids, g0))} <button class="btn sec" data-g="${u.id}">Cambiar</button></td><td><button class="tag ${u.activo ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`).join('')}</tbody></table></div></div><div id="ugp"></div>`;
+  const getNuevos = selGrados($('#ugn'), [], g0, nv0);
   $('#ua').onclick = async () => {
     const v = id => $('#' + id).value.trim();
     if (!v('uc') || !v('un') || !v('up')) return toast('Completa correo, nombres y apellidos.', 'mal');
-    const {error} = await sb.rpc('crear_perfil', {p_correo:v('uc'), p_nombres:v('un'), p_apellidos:v('up'), p_rol:$('#ur').value});
+    const {error} = await sb.rpc('crear_perfil', {p_correo:v('uc'), p_nombres:v('un'), p_apellidos:v('up'), p_rol:$('#ur').value, p_grados:getNuevos()});
     if (error) return toast(traducir(error), 'mal');
     toast('Usuario registrado.', 'ok'); vistaUsuarios();
   };
+  M.querySelectorAll('button[data-g]').forEach(b => b.onclick = () => {
+    const u = data.find(x => x.id === b.dataset.g), H = $('#ugp');
+    H.innerHTML = `<div class="panel"><h3>Grados de ${esc(u.apellidos)}, ${esc(u.nombres)}</h3><p class="mut">Sin marcar = todos los grados.</p><div id="ugs"></div><button class="btn pie" id="ugg">Guardar grados</button></div>`;
+    const get = selGrados($('#ugs'), u.grados_ids || [], g0, nv0);
+    $('#ugg').onclick = async () => {
+      const {error} = await sb.from('perfiles').update({grados_ids:get()}).eq('id', u.id);
+      if (error) return toast(traducir(error), 'mal');
+      toast('Grados guardados.', 'ok'); vistaUsuarios();
+    };
+    H.scrollIntoView({behavior:'smooth'});
+  });
   M.querySelectorAll('select[data-r]').forEach(s => s.onchange = async () => {
     if (s.dataset.r === perfil.id){ toast('No puedes cambiar tu propio rol.', 'mal'); return vistaUsuarios(); }
     const {error} = await sb.from('perfiles').update({rol:s.value}).eq('id', s.dataset.r);
@@ -514,15 +539,17 @@ async function vistaAsignaciones(){
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
   const rs = await Promise.all([
-    sb.from('perfiles').select('id,nombres,apellidos').eq('rol', 'docente').eq('activo', true).order('apellidos'),
+    sb.from('perfiles').select('id,nombres,apellidos,grados_ids').eq('rol', 'docente').eq('activo', true).order('apellidos'),
     sb.from('grados').select('id,nombre,orden'), sb.from('secciones').select('id,nombre'),
-    sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id),
+    gruposAnio('id,grado_id,seccion_id'),
     sb.from('asignaturas').select('id,grado_id,nombre').eq('es_calculada', false).eq('activa', true).order('orden'),
     sb.from('asignaciones_docente').select('docente_id,grupo_id,asignatura_id')
   ]);
   const fallo = rs.find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
-  const [d, g, s, gp, as, ad] = rs.map(r => r.data);
+  let [d, g, s, gp, as, ad] = rs.map(r => r.data);
+  const mios = perfil.rol === 'coordinador' && perfil.grados_ids && perfil.grados_ids.length ? perfil.grados_ids : null;
+  if (mios) d = d.filter(x => !x.grados_ids.length || x.grados_ids.some(i => mios.includes(i)));
   const gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
   const grupos = gp.map(x => ({...x, nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], o:gr[x.grado_id].orden}))
     .sort((a, b) => a.o - b.o || a.nom.localeCompare(b.nom));
@@ -531,9 +558,10 @@ async function vistaAsignaciones(){
     <label>Docente<select id="sd"><option value="">Elegir…</option>${d.map(x => `<option value="${x.id}">${esc(x.apellidos)}, ${esc(x.nombres)}</option>`).join('')}</select></label></div><div id="asg"></div>`;
   const pintar = () => {
     const did = $('#sd').value, A = $('#asg'); if (!did){ A.innerHTML = ''; return; }
+    const dd = d.find(x => x.id === did), gOk = dd.grados_ids.length ? grupos.filter(x => dd.grados_ids.includes(x.grado_id)) : grupos;
     const mias = ad.filter(x => x.docente_id === did && gnom[x.grupo_id]);
     A.innerHTML = `<div class="panel"><h3>Materias asignadas</h3>${mias.length ? `<div class="scroll"><table><thead><tr><th>Grado y sección</th><th>Asignatura</th><th></th></tr></thead><tbody>${mias.map(x => `<tr><td>${esc(gnom[x.grupo_id])}</td><td>${esc(an[x.asignatura_id])}</td><td><button class="btn sec" data-q="${x.grupo_id}:${x.asignatura_id}">Quitar</button></td></tr>`).join('')}</tbody></table></div>` : '<p class="mut">Todavía no tiene materias.</p>'}
-      <div class="sel"><label>Grado y sección<select id="ag"><option value="">Elegir…</option>${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label><label>Asignatura<select id="aa" disabled></select></label></div>
+      <div class="sel"><label>Grado y sección<select id="ag"><option value="">Elegir…</option>${gOk.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label><label>Asignatura<select id="aa" disabled></select></label></div>
       <button class="btn pie" id="aadd" disabled>Agregar</button></div>`;
     $('#ag').onchange = () => {
       const x = grupos.find(y => String(y.id) === $('#ag').value);
@@ -557,6 +585,22 @@ async function vistaAsignaciones(){
   $('#sd').onchange = pintar;
 }
 
+/* ---------- Listado de maestros ---------- */
+async function vistaMaestros(){
+  const M = $('#main'); M.innerHTML = '<p class="mut">Cargando…</p>';
+  const [{data, error}, {data:g0}] = await Promise.all([sb.rpc('lista_maestros'), sb.from('grados').select('id,nombre,orden').order('orden')]);
+  if (error){ M.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
+  const filas = data.map(u => ({Apellidos:u.apellidos, Nombres:u.nombres, Correo:u.correo, Rol:ROLES[u.rol], Grados:resumenGrados(u.grados_ids, g0), Materias:u.materias}));
+  M.innerHTML = `<div class="panel"><h2>Listado de maestros</h2><p class="mut">Maestros activos con los grados que atienden y las materias asignadas en el año ${anio ? esc(anio.nombre) : ''}.</p>
+    <input id="mq" class="busca" placeholder="Buscar por nombre o correo" aria-label="Buscar maestro"><div class="barra"><button class="btn sec" id="mdl">Descargar Excel</button></div><div id="mlis"></div></div>`;
+  const pintar = () => {
+    const q = $('#mq').value.trim().toLowerCase(), f = filas.filter(x => !q || (x.Apellidos + ' ' + x.Nombres + ' ' + x.Correo).toLowerCase().includes(q));
+    $('#mlis').innerHTML = `<p class="mut">${f.length} maestro(s)</p><div class="scroll"><table><thead><tr><th>Maestro</th><th>Correo</th><th>Rol</th><th>Grados</th><th>Materias asignadas</th></tr></thead><tbody>${f.map(x => `<tr><td>${esc(x.Apellidos)}, ${esc(x.Nombres)}</td><td>${esc(x.Correo)}</td><td>${esc(x.Rol)}</td><td>${esc(x.Grados)}</td><td>${esc(x.Materias || 'Sin materias')}</td></tr>`).join('')}</tbody></table></div>`;
+  };
+  $('#mq').oninput = pintar; pintar();
+  $('#mdl').onclick = () => typeof XLSX === 'undefined' ? toast('No se pudo cargar el lector de Excel. Recarga la página.', 'mal') : bajarXlsx(filas, 'Maestros', 'maestros.xlsx');
+}
+
 /* ---------- Importar alumnos ---------- */
 const norm = t => String(t ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 function vistaImportar(){
@@ -576,7 +620,7 @@ function vistaImportar(){
     const P = $('#prev'); P.innerHTML = '<p class="mut">Revisando el archivo…</p>';
     const wb = XLSX.read(await f.arrayBuffer());
     const crudo = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval:''});
-    const rs = await Promise.all([sb.from('grados').select('id,nombre'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)]);
+    const rs = await Promise.all([sb.from('grados').select('id,nombre'), sb.from('secciones').select('id,nombre'), gruposAnio('id,grado_id,seccion_id')]);
     const fallo = rs.find(r => r.error);
     if (fallo){ P.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
     const gr = Object.fromEntries(rs[0].data.map(x => [norm(x.nombre), x]));
@@ -694,7 +738,7 @@ async function vistaBoletas(){
   M.innerHTML = '<p class="mut">Cargando…</p>';
   const rs = await Promise.all([
     sb.from('grados').select('id,nombre,orden,etiquetas_periodo,nivel_id'), sb.from('secciones').select('id,nombre'),
-    sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id), sb.from('niveles').select('id,nombre')
+    gruposAnio('id,grado_id,seccion_id'), sb.from('niveles').select('id,nombre')
   ]);
   const fallo = rs.find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
@@ -884,7 +928,7 @@ async function vistaComentarios(){
   M.innerHTML = '<p class="mut">Cargando…</p>';
   const rs = await Promise.all([
     sb.from('grados').select('id,nombre,orden,etiquetas_periodo,nivel_id'), sb.from('secciones').select('id,nombre'),
-    sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id), sb.from('niveles').select('id,nombre'),
+    gruposAnio('id,grado_id,seccion_id'), sb.from('niveles').select('id,nombre'),
     sb.from('catalogo_comentarios').select('id,nivel,idioma,numero,texto,activo').order('numero')
   ]);
   const fallo = rs.find(r => r.error);
@@ -968,7 +1012,7 @@ async function vistaInasistencias(){
   const M = $('#main');
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
-  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden,etiquetas_periodo'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)]);
+  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden,etiquetas_periodo'), sb.from('secciones').select('id,nombre'), gruposAnio('id,grado_id,seccion_id')]);
   const fallo = rs.find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
   const [g, s, gp] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
@@ -1035,7 +1079,7 @@ async function vistaListados(){
   const M = $('#main');
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
-  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden,nivel_id'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id), sb.from('niveles').select('id,nombre')]);
+  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden,nivel_id'), sb.from('secciones').select('id,nombre'), gruposAnio('id,grado_id,seccion_id'), sb.from('niveles').select('id,nombre')]);
   const fallo = rs.find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
   const [g, s, gp, nv] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre])), nvn = Object.fromEntries(nv.map(x => [x.id, x.nombre]));
