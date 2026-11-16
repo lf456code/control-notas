@@ -58,7 +58,7 @@ input.nota:disabled{background:#eef2f1;color:var(--mut)}
 .login form{width:min(24rem,100%);display:grid;gap:.9rem;text-align:center;background:#fff;border-radius:12px;padding:2rem 1.6rem}
 .login label{text-align:left}
 input.num{width:5.5rem;padding:.45rem .5rem;border:1px solid var(--line);border-radius:8px;text-align:center;background:#fff}
-.lst{height:auto;min-height:11in;padding:.6in .7in}.lst h3{margin:.08in 0;font-size:15pt;color:#135051}.lst p{margin:.03in 0}.lst table{margin-top:.15in;font-size:10pt}.lst th,.lst td{border:1px solid #bbb;padding:.03in .07in;text-align:left}.lst th{background:#135051;color:#fff}
+.lst{height:auto;min-height:11in;padding:.6in .7in}.lst .llogo{display:block;margin:0 auto .06in;height:.75in}.lst h3{margin:.08in 0;font-size:15pt;color:#135051}.lst p{margin:.03in 0}.lst table{margin-top:.15in;font-size:10pt}.lst th,.lst td{border:1px solid #bbb;padding:.03in .07in;text-align:left}.lst th{background:#135051;color:#fff}
 #toast{position:fixed;left:50%;bottom:1.4rem;transform:translateX(-50%);background:var(--ink);color:#fff;padding:.7rem 1.1rem;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:92vw;z-index:9}
 #toast.show{opacity:1}#toast.mal{background:var(--red)}#toast.ok{background:var(--ok)}
 table.n input.nota{width:4.8rem}
@@ -142,7 +142,7 @@ const MODULOS = [
   {id:'notas',n:'Notas',r:[...DIR,'subcoordinador','docente'],f:()=>vistaNotas()},
   {id:'inasistencias',n:'Inasistencias',r:[...DIR,'subcoordinador'],f:()=>vistaInasistencias()},
   {id:'unidades',n:'Unidades',r:DIR,f:()=>vistaUnidades()},
-  {id:'solvencia',n:'Solvencia',r:[...DIR,'caja'],f:()=>vistaSolvencia()},
+  {id:'solvencia',n:'Solvencia',r:['administrador','caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
   {id:'boletas',n:'Boletas',r:DIR,f:()=>vistaBoletas()},
   {id:'listados',n:'Listados',r:[...DIR,'subcoordinador'],f:()=>vistaListados()},
@@ -215,7 +215,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 13-nov-H</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-A</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -383,7 +383,7 @@ async function vistaSolvencia(){
   const M = $('#main'); M.innerHTML = '<p class="mut">Cargando…</p>';
   const vacio = Promise.resolve({data:[]});
   const rs = await Promise.all([
-    sb.from('grados').select('id,nombre'), sb.from('secciones').select('id,nombre'),
+    sb.from('grados').select('id,nombre,orden'), sb.from('secciones').select('id,nombre'),
     anio ? sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id) : vacio,
     anio ? sb.from('inscripciones').select('alumno_id,grupo_id').eq('anio_id', anio.id) : vacio,
     sb.from('alumnos').select('id,clave,nombres,apellidos,solvente').eq('activo', true).order('apellidos')
@@ -394,10 +394,13 @@ async function vistaSolvencia(){
   const gn = Object.fromEntries(g.map(x => [x.id, x.nombre])), sn = Object.fromEntries(s.map(x => [x.id, x.nombre]));
   const gpn = Object.fromEntries(gp.map(x => [x.id, gn[x.grado_id] + ' ' + sn[x.seccion_id]]));
   const gal = Object.fromEntries(ins.map(x => [x.alumno_id, gpn[x.grupo_id]]));
-  M.innerHTML = '<div class="panel"><h2>Solvencia de alumnos</h2><p class="mut">Un alumno insolvente no puede recibir su boleta.</p><input id="bq" class="busca" placeholder="Buscar por nombre, apellido o clave" aria-label="Buscar alumno"><div id="lista"></div></div><div class="panel"><h2>Actualizar con un listado</h2><p class="mut">Sube un Excel con las columnas <b>Clave</b> y <b>Solvente</b> (Sí o No). Los alumnos cuyo estado cambie se actualizan; los demás se dejan igual. Puedes descargar el listado actual para usarlo de base. Los botones de arriba siguen funcionando.</p><div class="barra"><button class="btn sec" id="sdl">Descargar listado actual</button><input type="file" id="sup" accept=".xlsx,.xls,.csv"></div><div id="sprev"></div></div>';
+  const gpo = Object.fromEntries(gp.map(x => [x.id, x])), aGr = Object.fromEntries(ins.map(x => [x.alumno_id, gpo[x.grupo_id]]));
+  const gOpc = [...g].sort((a, b) => a.orden - b.orden).map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join(''), sOpc = s.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('');
+  M.innerHTML = '<div class="panel"><h2>Solvencia de alumnos</h2><p class="mut">Un alumno insolvente no puede recibir su boleta.</p><div class="sel"><label>Grado<select id="fg"><option value="">Todos</option>' + gOpc + '</select></label><label>Sección<select id="fs"><option value="">Todas</option>' + sOpc + '</select></label></div><input id="bq" class="busca" placeholder="Buscar por nombre, apellido o clave" aria-label="Buscar alumno"><div id="lista"></div></div><div class="panel"><h2>Actualizar con un listado</h2><p class="mut">Sube un Excel con las columnas <b>Clave</b> y <b>Solvente</b> (Sí o No). Los alumnos cuyo estado cambie se actualizan; los demás se dejan igual. Puedes descargar el listado actual para usarlo de base. Los botones de arriba siguen funcionando.</p><div class="barra"><button class="btn sec" id="sdl">Descargar listado actual</button><input type="file" id="sup" accept=".xlsx,.xls,.csv"></div><div id="sprev"></div></div>';
   const pintar = () => {
     const q = $('#bq').value.trim().toLowerCase();
-    const f = al.filter(a => !q || (a.clave + ' ' + a.nombres + ' ' + a.apellidos).toLowerCase().includes(q));
+    const fg = $('#fg').value, fs = $('#fs').value;
+    const f = al.filter(a => (!q || (a.clave + ' ' + a.nombres + ' ' + a.apellidos).toLowerCase().includes(q)) && (!fg || (aGr[a.id] && String(aGr[a.id].grado_id) === fg)) && (!fs || (aGr[a.id] && String(aGr[a.id].seccion_id) === fs)));
     $('#lista').innerHTML = `<p class="mut">${f.length} alumno(s)${f.length > 150 ? ', se muestran 150: usa el buscador' : ''}</p><div class="scroll"><table><thead><tr><th>Clave</th><th>Alumno</th><th>Grado</th><th>Estado</th><th></th></tr></thead><tbody>
       ${f.slice(0, 150).map(a => `<tr><td>${esc(a.clave)}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td><td>${esc(gal[a.id] || 'Sin inscripción')}</td><td><span class="tag ${a.solvente ? 'ok' : 'mal'}">${a.solvente ? 'Solvente' : 'Insolvente'}</span></td><td><button class="btn sec" data-a="${a.id}">${a.solvente ? 'Marcar insolvente' : 'Marcar solvente'}</button></td></tr>`).join('')}</tbody></table></div>`;
     $('#lista').querySelectorAll('button[data-a]').forEach(b => b.onclick = async () => {
@@ -407,7 +410,7 @@ async function vistaSolvencia(){
       a.solvente = !a.solvente; pintar();
     });
   };
-  $('#bq').oninput = pintar; pintar();
+  $('#bq').oninput = pintar; $('#fg').onchange = pintar; $('#fs').onchange = pintar; pintar();
   const sinLector = () => typeof XLSX === 'undefined' && (toast('No se pudo cargar el lector de Excel. Revisa tu internet y recarga la página.', 'mal'), true);
   $('#sdl').onclick = () => { if (sinLector()) return; bajarXlsx(al.map(a => ({Clave:a.clave, Apellidos:a.apellidos, Nombres:a.nombres, Grado:gal[a.id] || '', Solvente:a.solvente ? 'Sí' : 'No'})), 'Solvencia', 'solvencia.xlsx'); };
   $('#sup').onchange = async ev => {
@@ -1032,11 +1035,11 @@ async function vistaListados(){
   const M = $('#main');
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
-  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id)]);
+  const rs = await Promise.all([sb.from('grados').select('id,nombre,orden,nivel_id'), sb.from('secciones').select('id,nombre'), sb.from('grupos').select('id,grado_id,seccion_id').eq('anio_id', anio.id), sb.from('niveles').select('id,nombre')]);
   const fallo = rs.find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
-  const [g, s, gp] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
-  const grupos = gp.map(x => ({...x, gn:gr[x.grado_id].nombre, sn:se[x.seccion_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], ord:gr[x.grado_id].orden})).sort((a, b) => a.ord - b.ord || a.nom.localeCompare(b.nom));
+  const [g, s, gp, nv] = rs.map(r => r.data), gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre])), nvn = Object.fromEntries(nv.map(x => [x.id, x.nombre]));
+  const grupos = gp.map(x => ({...x, gn:gr[x.grado_id].nombre, sn:se[x.seccion_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], ord:gr[x.grado_id].orden, nido:nvn[gr[x.grado_id].nivel_id] === 'Preprimaria'})).sort((a, b) => a.ord - b.ord || a.nom.localeCompare(b.nom));
   if (!grupos.length){ M.innerHTML = '<div class="panel"><p>Aún no hay grupos creados para este año.</p></div>'; return; }
   M.innerHTML = `<div class="panel no-print"><h2>Listados oficiales</h2>
     <p class="mut">Lista de alumnos inscritos en el año ${esc(anio.nombre)}, por grado y sección. Siempre refleja a los alumnos inscritos en este momento.</p>
@@ -1054,7 +1057,7 @@ async function vistaListados(){
     try {
       const filas = await traer(x), hoy = new Date().toLocaleDateString('es-GT');
       B.innerHTML = `<div class="barra no-print"><button class="btn" id="lxl">Descargar Excel</button><button class="btn sec" id="lim">Imprimir o guardar como PDF</button></div>
-        <div class="boleta lst"><h3>Colegio Bilingüe Campo Real</h3><p><b>Listado oficial de alumnos</b></p><p>${esc(x.gn)} · Sección ${esc(x.sn)} · Año escolar ${esc(anio.nombre)}</p><p>Total de alumnos: ${filas.length} · Fecha: ${esc(hoy)}</p>
+        <div class="boleta lst"><img class="llogo" src="${x.nido ? 'logo-nido.png' : esc(CONFIG.LOGO)}" alt="" onerror="this.remove()"><h3>Colegio Bilingüe Campo Real</h3><p><b>Listado oficial de alumnos</b></p><p>${esc(x.gn)} · Sección ${esc(x.sn)} · Año escolar ${esc(anio.nombre)}</p><p>Total de alumnos: ${filas.length} · Fecha: ${esc(hoy)}</p>
         <table><thead><tr><th>No.</th><th>Clave</th><th>Apellidos</th><th>Nombres</th></tr></thead><tbody>${filas.map(f => `<tr><td>${f['No.']}</td><td>${esc(f.Clave)}</td><td>${esc(f.Apellidos)}</td><td>${esc(f.Nombres)}</td></tr>`).join('')}</tbody></table></div>`;
       $('#lxl').onclick = () => typeof XLSX === 'undefined' ? toast('No se pudo cargar el lector de Excel. Recarga la página.', 'mal') : bajarXlsx(filas, x.nom.slice(0, 31), `listado_${x.nom.replace(/\s+/g, '_')}.xlsx`);
       $('#lim').onclick = () => window.print();
