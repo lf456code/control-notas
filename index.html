@@ -144,7 +144,7 @@ const MODULOS = [
   {id:'unidades',n:'Unidades',r:DIR,f:()=>vistaUnidades()},
   {id:'solvencia',n:'Solvencia',r:['administrador','caja'],f:()=>vistaSolvencia()},
   {id:'alumnos',n:'Alumnos',r:[...DIR,'subcoordinador']},
-  {id:'boletas',n:'Boletas',r:DIR,f:()=>vistaBoletas()},
+  {id:'boletas',n:'Boletas',r:[...DIR,'docente'],f:()=>vistaBoletas()},
   {id:'listados',n:'Listados',r:[...DIR,'subcoordinador'],f:()=>vistaListados()},
   {id:'comentarios',n:'Comentarios',r:DIR,f:()=>vistaComentarios()},
   {id:'importar',n:'Importar datos',r:['administrador'],f:()=>vistaImportar()},
@@ -159,6 +159,7 @@ const MODULOS = [
 ];
 
 const $ = (s,e=document) => e.querySelector(s);
+const esHabito = a => /^\s*h[aá]bitos/i.test(a.area || '');
 /* Grupos del año activo; un coordinador con grados asignados solo ve los suyos */
 const gruposAnio = cols => { const q = sb.from('grupos').select(cols).eq('anio_id', anio.id); return (perfil.rol === 'coordinador' && perfil.grados_ids && perfil.grados_ids.length) ? q.in('grado_id', perfil.grados_ids) : q; };
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -217,12 +218,14 @@ async function entrar(user){
   perfil.permisos = Object.fromEntries((pm || []).map(x => [x.modulo, x.nivel]));
   const {data:a} = await sb.from('anios_escolares').select('*').eq('activo', true).maybeSingle();
   anio = a;
+  perfil.boletasEnc = [];
+  if (perfil.rol === 'docente'){ const {data:be} = await sb.rpc('mis_grupos_boletas'); perfil.boletasEnc = be || []; }
   vistaApp();
 }
 
 function vistaApp(){
-  const mods = MODULOS.filter(m => m.r.includes(perfil.rol) && (perfil.rol === 'administrador' || (perfil.permisos || {})[m.id] !== 'ninguno'));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 16-nov-G</small></div>
+  const mods = MODULOS.filter(m => m.r.includes(perfil.rol) && (perfil.rol === 'administrador' || (perfil.permisos || {})[m.id] !== 'ninguno') && (m.id !== 'boletas' || perfil.rol !== 'docente' || (perfil.boletasEnc || []).length));
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 17-nov-A</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -260,7 +263,7 @@ async function vistaNotas(){
     sb.from('grados').select('*').order('orden'),
     sb.from('secciones').select('*'),
     gruposAnio('*'),
-    sb.from('asignaturas').select('id,grado_id,nombre,orden,escala').eq('es_calculada', false).eq('activa', true).order('orden'),
+    sb.from('asignaturas').select('id,grado_id,nombre,orden,escala,area').eq('es_calculada', false).eq('activa', true).order('orden'),
     doc ? sb.from('asignaciones_docente').select('grupo_id,asignatura_id') : Promise.resolve({data:[]})
   ]);
   const fallo = rs.find(r => r.error);
@@ -270,7 +273,7 @@ async function vistaNotas(){
   const gr = Object.fromEntries(g.map(x => [x.id, x])), se = Object.fromEntries(s.map(x => [x.id, x.nombre]));
   let grupos = gp.map(x => ({...x, grado:gr[x.grado_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id]}))
     .sort((a, b) => a.grado.orden - b.grado.orden || a.nom.localeCompare(b.nom));
-  const asigDe = x => as.filter(a => a.grado_id === x.grado_id && (!doc || pares.has(x.id + ':' + a.id)));
+  const asigDe = x => as.filter(a => a.grado_id === x.grado_id && !esHabito(a) && (!doc || pares.has(x.id + ':' + a.id)));
   if (doc) grupos = grupos.filter(x => asigDe(x).length);
   if (!grupos.length){ M.innerHTML = '<div class="panel"><p>' + (doc ? 'Todavía no tienes materias asignadas. Pide al administrador que las asigne.' : 'Aún no hay grupos creados para este año.') + '</p></div>'; return; }
   M.innerHTML = `<div class="panel"><h2>Ingreso de notas</h2><div class="sel">
@@ -294,7 +297,7 @@ async function cargarTabla(grupo, asig, unidad){
   const T = $('#tabla'); T.innerHTML = '<p class="mut">Cargando alumnos…</p>';
   const {data:ins, error:e1} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', grupo.id);
   if (e1){ T.innerHTML = `<p class="err">${esc(traducir(e1))}</p>`; return; }
-  if (!ins.length){ T.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
+  if (!ins.length){ T.innerHTML = `<div class="panel"><p><b>${esc(grupo.nom)}</b> todavía no tiene alumnos inscritos en el año ${esc(anio.nombre)}. Si ya subiste el Excel de alumnos, revisa que incluya este grado y esta sección.</p></div>`; return; }
   const ids = ins.map(i => i.id);
   const [al, ev, pm, es, nv] = await Promise.all([
     sb.from('alumnos').select('id,clave,nombres,apellidos').in('id', ins.map(i => i.alumno_id)),
@@ -475,32 +478,22 @@ async function vistaUnidades(){
   const M = $('#main');
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
-  const [g, u, ev] = await Promise.all([
+  const [g, u] = await Promise.all([
     sb.from('grados').select('id,nombre,orden').order('orden'),
-    sb.from('unidades_estado').select('grado_id,unidad,abierta').eq('anio_id', anio.id),
-    sb.from('envio_boletas').select('grado_id,unidad,habilitado').eq('anio_id', anio.id)
+    sb.from('unidades_estado').select('grado_id,unidad,abierta').eq('anio_id', anio.id)
   ]);
-  const fallo = [g, u, ev].find(r => r.error);
+  const fallo = [g, u].find(r => r.error);
   if (fallo){ M.innerHTML = `<p class="err">${esc(traducir(fallo.error))}</p>`; return; }
   const est = Object.fromEntries(u.data.map(x => [x.grado_id + ':' + x.unidad, x.abierta]));
   const mios = perfil.rol === 'coordinador' && perfil.grados_ids && perfil.grados_ids.length;
   if (mios) g.data = g.data.filter(x => perfil.grados_ids.includes(x.id));
-  const U = [1, 2, 3, 4], habil = Object.fromEntries(ev.data.map(x => [x.grado_id + ':' + x.unidad, x.habilitado]));
+  const U = [1, 2, 3, 4];
   M.innerHTML = `<div class="panel"><h2>Abrir y cerrar unidades</h2><p class="mut">Con la unidad abierta, los maestros capturan y corrigen notas. Al cerrarla, solo la dirección puede cambiarlas.</p>
     <div class="scroll"><table><thead><tr><th>Grado</th>${U.map(k => `<th>Unidad ${k}</th>`).join('')}</tr></thead><tbody>
     <tr><td><b>${mios ? 'Todos mis grados' : 'Todos los grados'}</b></td>${U.map(k => `<td><button class="btn sec" data-k="${k}" data-a="0">Cerrar</button> <button class="btn sec" data-k="${k}" data-a="1">Abrir</button></td>`).join('')}</tr>
     ${g.data.map(x => `<tr><td>${esc(x.nombre)}</td>${U.map(k => { const ab = est[x.id + ':' + k] !== false; return `<td><button class="tag ${ab ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-g="${x.id}" data-k="${k}" data-a="${ab ? 0 : 1}" title="Clic para ${ab ? 'cerrar' : 'abrir'}">${ab ? 'Abierta' : 'Cerrada'}</button></td>`; }).join('')}</tr>`).join('')}
     </tbody></table></div></div>
-    <div class="panel"><h2>Envío de boletas por correo</h2><p class="mut">Cuando habilitas una unidad en un grado, los maestros encargados de ese grado ven el botón para enviar las boletas. Si la deshabilitas, desaparece.</p>
-    <div class="scroll"><table><thead><tr><th>Grado</th>${U.map(k => `<th>Unidad ${k}</th>`).join('')}</tr></thead><tbody>
-    ${g.data.map(x => `<tr><td>${esc(x.nombre)}</td>${U.map(k => { const h = !!habil[x.id + ':' + k]; return `<td><button class="tag ${h ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-env="${x.id}:${k}" title="Clic para ${h ? 'deshabilitar' : 'habilitar'}">${h ? 'Habilitado' : 'No habilitado'}</button></td>`; }).join('')}</tr>`).join('')}
-    </tbody></table></div></div>`;
-  M.querySelectorAll('button[data-env]').forEach(b => b.onclick = async () => {
-    const [gid, k] = b.dataset.env.split(':').map(Number), nuevo = !habil[gid + ':' + k];
-    const {error} = await sb.from('envio_boletas').upsert({anio_id:anio.id, grado_id:gid, unidad:k, habilitado:nuevo});
-    if (error) return toast(traducir(error), 'mal');
-    toast(nuevo ? 'Envío habilitado.' : 'Envío deshabilitado.', 'ok'); vistaUnidades();
-  });
+    <div class="panel"><h2>Boletas de los encargados de grado</h2><p class="mut">Ya no hay que habilitarlas a mano. Al cerrar una unidad en un grado, los maestros encargados de ese grado ven automáticamente el módulo Boletas con las unidades cerradas. Si vuelves a abrir la unidad, deja de estar disponible para ellos.</p></div>`;
   M.querySelectorAll('button[data-k]').forEach(b => b.onclick = async () => {
     const k = +b.dataset.k, abrir = b.dataset.a === '1', todos = b.dataset.g === undefined;
     if (!confirm(`¿${abrir ? 'Abrir' : 'Cerrar'} la Unidad ${k}${todos ? (mios ? ' en todos tus grados' : ' en TODOS los grados') : ''}?`)) return;
@@ -637,7 +630,7 @@ async function vistaAsignaciones(){
     });
     $('#ag').onchange = () => {
       const x = grupos.find(y => String(y.id) === $('#ag').value);
-      $('#aa').innerHTML = x ? '<option value="">Elegir…</option>' + as.filter(a => a.grado_id === x.grado_id && !/^h[aá]bitos/i.test(a.area || '')).map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('') : '';
+      $('#aa').innerHTML = x ? '<option value="">Elegir…</option>' + as.filter(a => a.grado_id === x.grado_id && !esHabito(a)).map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('') : '';
       $('#aa').disabled = !x; $('#aadd').disabled = true;
     };
     $('#aa').onchange = () => $('#aadd').disabled = !$('#aa').value;
@@ -904,6 +897,13 @@ async function vistaBoletas(){
   const M = $('#main');
   if (!anio){ M.innerHTML = '<div class="panel"><p>No hay un año escolar activo.</p></div>'; return; }
   M.innerHTML = '<p class="mut">Cargando…</p>';
+  if (perfil.rol === 'docente'){
+    const {data:be, error:eb} = await sb.rpc('mis_grupos_boletas');
+    if (eb){ M.innerHTML = `<p class="err">${esc(traducir(eb))}</p>`; return; }
+    const gE = (be || []).map(x => ({id:x.grupo_id, grado:{id:x.grado_id, nombre:x.grado, etiquetas_periodo:x.etiquetas}, nom:x.grado + ' ' + x.seccion, gn:x.grado, sn:x.seccion, nido:x.nivel === 'Preprimaria', cerradas:x.cerradas || []}));
+    if (!gE.length){ M.innerHTML = '<div class="panel"><h2>Boletas</h2><p>Las boletas de tus grados se habilitan automáticamente cuando se cierra una unidad.</p></div>'; return; }
+    return boletasUI(gE, true);
+  }
   const rs = await Promise.all([
     sb.from('grados').select('id,nombre,orden,etiquetas_periodo,nivel_id'), sb.from('secciones').select('id,nombre'),
     gruposAnio('id,grado_id,seccion_id'), sb.from('niveles').select('id,nombre')
@@ -915,32 +915,50 @@ async function vistaBoletas(){
   const grupos = gp.map(x => ({...x, grado:gr[x.grado_id], nom:gr[x.grado_id].nombre + ' ' + se[x.seccion_id], gn:gr[x.grado_id].nombre, sn:se[x.seccion_id], nido:nvn[gr[x.grado_id].nivel_id] === 'Preprimaria'}))
     .sort((a, b) => a.grado.orden - b.grado.orden || a.nom.localeCompare(b.nom));
   if (!grupos.length){ M.innerHTML = '<div class="panel"><p>Aún no hay grupos creados para este año.</p></div>'; return; }
-  M.innerHTML = `<div class="panel no-print"><h2>Boletas</h2><label>Grado y sección<select id="bg">${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label></div><div id="blista" class="no-print"></div><div id="bol"></div>`;
+  return boletasUI(grupos, false);
+}
+function boletasUI(grupos, enc){
+  const M = $('#main');
+  M.innerHTML = `<div class="panel no-print"><h2>Boletas</h2>${enc ? '<p class="mut">Estas boletas están disponibles porque la unidad ya fue cerrada. Solo aparecen las unidades cerradas.</p>' : ''}<label>Grado y sección<select id="bg">${grupos.map(x => `<option value="${x.id}">${esc(x.nom)}</option>`).join('')}</select></label></div><div id="blista" class="no-print"></div><div id="bol"></div>`;
   const cargar = async () => {
     const grupo = grupos.find(x => String(x.id) === $('#bg').value), L = $('#blista'); $('#bol').innerHTML = '';
     L.innerHTML = '<p class="mut">Cargando alumnos…</p>';
+    let filas;
+    if (enc){
+      const {data:alE, error:eE} = await sb.rpc('alumnos_boletas', {p_grupo:grupo.id});
+      if (eE){ L.innerHTML = `<p class="err">${esc(traducir(eE))}</p>`; return; }
+      if (!alE.length){ L.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
+      filas = alE.map(a => ({i:{id:a.inscripcion_id}, a:{id:a.inscripcion_id, clave:a.clave, nombres:a.nombres, apellidos:a.apellidos, solvente:a.solvente}}))
+        .sort((x, y) => (x.a.apellidos + x.a.nombres).localeCompare(y.a.apellidos + y.a.nombres)).map((f, n) => ({...f, num:n + 1}));
+    } else {
     const {data:ins, error} = await sb.from('inscripciones').select('id,alumno_id').eq('grupo_id', grupo.id);
     if (error){ L.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
     if (!ins.length){ L.innerHTML = '<div class="panel"><p>Este grupo todavía no tiene alumnos inscritos.</p></div>'; return; }
     const {data:al, error:e2} = await sb.from('alumnos').select('id,clave,nombres,apellidos,solvente').in('id', ins.map(i => i.alumno_id));
     if (e2){ L.innerHTML = `<p class="err">${esc(traducir(e2))}</p>`; return; }
     const ali = Object.fromEntries(al.map(a => [a.id, a]));
-    const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a)
+    filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a)
       .sort((x, y) => (x.a.apellidos + x.a.nombres).localeCompare(y.a.apellidos + y.a.nombres)).map((f, n) => ({...f, num:n + 1}));
+    }
     L.innerHTML = `<div class="panel"><div class="barra"><button class="btn" id="btodas">Ver las boletas de todo el grupo</button></div><div class="scroll"><table><thead><tr><th>No.</th><th>Alumno</th><th>Solvencia</th><th></th></tr></thead><tbody>
       ${filas.map(f => `<tr><td>${f.num}</td><td>${esc(f.a.apellidos)}, ${esc(f.a.nombres)}</td><td><span class="tag ${f.a.solvente ? 'ok' : 'mal'}">${f.a.solvente ? 'Solvente' : 'Insolvente'}</span></td><td><button class="btn sec" data-i="${f.i.id}" ${f.a.solvente ? '' : 'disabled'}>Ver boleta</button></td></tr>`).join('')}</tbody></table></div></div>`;
     const mostrar = async (lista, aviso) => {
       const B = $('#bol'); B.innerHTML = '<p class="mut no-print">Preparando boletas…</p>';
       const ids = lista.map(f => f.i.id);
-      const [ina, com, cat] = await Promise.all([
+      const [ina, com, cat] = await Promise.all(enc ? [
+        sb.rpc('inasistencias_boleta', {p_grupo:grupo.id}), sb.rpc('comentarios_boleta', {p_grupo:grupo.id}), Promise.resolve({data:[]})
+      ] : [
         sb.from('inasistencias').select('inscripcion_id,unidad,cantidad').in('inscripcion_id', ids),
         sb.from('comentarios_inscripcion').select('inscripcion_id,unidad,comentario_en_id,observacion_es_id').in('inscripcion_id', ids),
         sb.from('catalogo_comentarios').select('id,texto')
       ]);
       const txt = Object.fromEntries((cat.data || []).map(c => [c.id, c.texto])), nb = [];
+      const ce = enc ? grupo.cerradas : [1, 2, 3, 4], soloCerradas = z => ce.includes(z.unidad);
+      if (enc) (com.data || []).forEach(c => { txt[c.comentario_en_id] = c.texto_en; txt[c.observacion_es_id] = c.texto_es; });
       for (let k = 0; k < lista.length; k += 6) nb.push(...await Promise.all(lista.slice(k, k + 6).map(f => sb.rpc('boleta_notas', {p_inscripcion:f.i.id}))));
+      if (enc) nb.forEach(r => { if (!r.error && r.data) r.data = r.data.map(x => ({...x, u1:ce.includes(1) ? x.u1 : null, u2:ce.includes(2) ? x.u2 : null, u3:ce.includes(3) ? x.u3 : null, u4:ce.includes(4) ? x.u4 : null})); });
       B.innerHTML = `<div class="barra no-print"><button class="btn" id="bimp">Imprimir o guardar como PDF</button></div>${aviso ? `<p class="aviso no-print">${esc(aviso)}</p>` : ''}`
-        + lista.map((f, n) => boletaHtml(f, nb[n], grupo, ina.data || [], com.data || [], txt)).join('');
+        + lista.map((f, n) => boletaHtml(f, nb[n], grupo, (ina.data || []).filter(soloCerradas), (com.data || []).filter(soloCerradas), txt)).join('');
       ajustarBoletas();
       $('#bimp').onclick = () => { ajustarBoletas(); window.print(); };
       B.scrollIntoView();
