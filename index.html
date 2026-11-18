@@ -241,7 +241,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol) && (perfil.rol === 'administrador' || (perfil.permisos || {})[m.id] !== 'ninguno') && (m.id !== 'boletas' || perfil.rol !== 'docente' || (perfil.boletasEnc || []).length));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 18-nov-A</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 18-nov-B</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
@@ -992,6 +992,21 @@ function boletasUI(grupos, enc){
     }
     L.innerHTML = `<div class="panel"><div class="barra"><button class="btn" id="btodas">Ver las boletas de todo el grupo</button></div><div class="scroll"><table><thead><tr><th>No.</th><th>Alumno</th><th>Solvencia</th><th></th></tr></thead><tbody>
       ${filas.map(f => `<tr><td>${f.num}</td><td>${esc(f.a.apellidos)}, ${esc(f.a.nombres)}</td><td><span class="tag ${f.a.solvente ? 'ok' : 'mal'}">${f.a.solvente ? 'Solvente' : 'Insolvente'}</span></td><td><button class="btn sec" data-i="${f.i.id}" ${f.a.solvente ? '' : 'disabled'}>Ver boleta</button></td></tr>`).join('')}</tbody></table></div></div>`;
+    const ue = (await sb.rpc('unidades_envio', {p_grupo:grupo.id})).data || [], P = document.createElement('div'); P.className = 'panel';
+    const etq = u => esc(((grupo.grado || {}).etiquetas_periodo || [])[u - 1] || 'Unidad ' + u);
+    P.innerHTML = ue.length ? `<h3>Enviar boletas por correo</h3><p class="mut">Cada familia con correo registrado recibe un enlace seguro a la boleta de su hijo. Los alumnos insolventes no reciben boleta.</p><div class="sel"><label>Unidad<select id="eu">${ue.map(u => `<option value="${u}">${etq(u)}</option>`).join('')}</select></label></div><label style="display:flex;gap:.4rem;align-items:center;margin:.5rem 0"><input type="checkbox" id="ere"> Volver a enviar a quienes ya recibieron esta unidad</label><div class="barra"><button class="btn" id="eenv">Enviar boletas por correo</button></div><div id="eres"></div>` : '<p class="mut">El envío por correo se activa cuando coordinación cierra una unidad y habilita las boletas.</p>';
+    L.appendChild(P);
+    const eb = $('#eenv');
+    if (eb) eb.onclick = async () => {
+      const u = +$('#eu').value, R = $('#eres');
+      if (!confirm(`Se enviará la boleta (${$('#eu').selectedOptions[0].textContent}) a las familias de ${grupo.nom}. ¿Continuar?`)) return;
+      eb.disabled = true; eb.textContent = 'Enviando… no cierres la página'; R.innerHTML = '';
+      const {data, error} = await sb.functions.invoke('enviar-boletas', {body:{grupo_id:grupo.id, unidad:u, reenviar:$('#ere').checked, alumnos:filas.map(f => ({inscripcion_id:f.i.id, num:f.num}))}});
+      eb.disabled = false; eb.textContent = 'Enviar boletas por correo';
+      let m = ''; if (error){ try { m = (await error.context.json()).error; } catch (_) {} m = m || 'No se pudo enviar. Intenta de nuevo.'; }
+      const lis = (t, a) => a && a.length ? `<p><b>${t} (${a.length}):</b> ${a.map(esc).join('; ')}</p>` : '';
+      R.innerHTML = error ? `<p class="err">${esc(m)}</p>` : `<p class="tag ok">Correos enviados: ${data.enviados}${data.ya_enviados ? ` · ya los habían recibido: ${data.ya_enviados}` : ''}</p>${lis('Sin correo registrado', data.sin_correo)}${lis('Insolventes, no se envió', data.insolventes)}${lis('No se pudo enviar', data.errores)}`;
+    };
     const mostrar = async (lista, aviso) => {
       const B = $('#bol'); B.innerHTML = '<p class="mut no-print">Preparando boletas…</p>';
       const ids = lista.map(f => f.i.id);
