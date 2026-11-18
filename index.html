@@ -193,8 +193,24 @@ async function iniciar(){
     return;
   }
   sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+  const enlace = new URLSearchParams(location.search).get('b');
+  if (enlace) return vistaBoletaFamilia(enlace);
   const {data:{session}} = await sb.auth.getSession();
   session ? entrar(session.user) : vistaLogin();
+}
+
+/* ---------- Boleta que abre la familia con su enlace (sin iniciar sesión) ---------- */
+async function vistaBoletaFamilia(t){
+  const A = $('#app'); A.innerHTML = '<p class="mut" style="padding:1rem">Cargando boleta…</p>';
+  const {data, error} = await sb.rpc('boleta_familia', {p_token:t});
+  if (error || !data || data.error){
+    A.innerHTML = `<div class="login"><div class="panel">${logo('grande')}<h2>Boleta no disponible</h2><p>${esc((data && data.error) || 'No se pudo abrir la boleta. Comunícate con el colegio.')}</p></div></div>`; return;
+  }
+  const g = data.grupo, grupo = {grado:{etiquetas_periodo:g.etiquetas}, gn:g.grado, sn:g.seccion, nido:g.nido};
+  const f = {a:data.alumno, i:{id:data.inscripcion_id}, num:data.num}, txt = {};
+  (data.com || []).forEach(c => { txt[c.comentario_en_id] = c.texto_en; txt[c.observacion_es_id] = c.texto_es; });
+  A.innerHTML = `<div class="barra no-print" style="max-width:8.5in;margin:1rem auto;padding:0 .5rem"><button class="btn" id="bimp">Imprimir o guardar como PDF</button></div><div id="bol">${boletaHtml(f, {data:data.notas}, grupo, data.ina || [], data.com || [], txt)}</div>`;
+  ajustarBoletas(); $('#bimp').onclick = () => { ajustarBoletas(); window.print(); };
 }
 
 function vistaLogin(msg=''){
@@ -225,7 +241,7 @@ async function entrar(user){
 
 function vistaApp(){
   const mods = MODULOS.filter(m => m.r.includes(perfil.rol) && (perfil.rol === 'administrador' || (perfil.permisos || {})[m.id] !== 'ninguno') && (m.id !== 'boletas' || perfil.rol !== 'docente' || (perfil.boletasEnc || []).length));
-  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 17-nov-A</small></div>
+  $('#app').innerHTML = `<header class="top">${logo()}<div class="tit"><b>${esc(CONFIG.COLEGIO)}</b><small>Control de notas${anio ? ', año ' + esc(anio.nombre) : ''} · versión 18-nov-A</small></div>
     <div class="user"><span>${esc(perfil.nombres)} ${esc(perfil.apellidos)}</span><em>${ROLES[perfil.rol]}</em><button class="btn sec" id="out">Salir</button></div></header>
     <div class="wrap"><nav>${mods.map(m => `<button data-m="${m.id}" ${m.f ? '' : 'disabled'}>${m.n}${m.f ? '' : '<i>pronto</i>'}</button>`).join('')}</nav><main id="main"></main></div>`;
   $('#out').onclick = async () => { await sb.auth.signOut(); perfil = null; vistaLogin(); };
