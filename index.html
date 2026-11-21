@@ -229,6 +229,16 @@ select,input[type=email],input[type=password],input.busca,input.txt{border:1.5px
   .usr td{border:0;padding:.2rem 0}
   .usr td[data-l]::before{content:attr(data-l);display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
 }
+
+/* Ancho completo y tabla de notas (20-nov) */
+main{min-width:0}
+.wrap{max-width:120rem}
+th.ev,table.n th:nth-last-child(-n+3),table.n td.z,table.n td.t{text-align:center}
+.deleva{display:flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;padding:0;margin:.35rem auto 0;border-radius:8px}
+.deleva .ic{width:1rem;height:1rem}
+input[type=file]{max-width:100%}
+input[type=file]::file-selector-button{margin-right:.8rem;border:1.5px solid var(--g3);border-radius:10px;padding:.55rem 1rem .55rem 2.4rem;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23117972' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 16V4M7 9l5-5 5 5M4 20h16'/%3E%3C/svg%3E") no-repeat .8rem center/1.1rem;color:var(--deep);font:600 .95rem Figtree,system-ui,sans-serif;cursor:pointer}
+input[type=file]::file-selector-button:hover{background-color:var(--mint)}
 /* Firma y emoji flotantes en la esquina de la pantalla */
 #app:has(.fm) .wrap{padding-bottom:6rem}
 .fm{position:fixed;right:20px;bottom:14px;z-index:50;display:flex;align-items:center;gap:8px;pointer-events:none}
@@ -307,6 +317,37 @@ const ICO = {
   salir:'<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>'
 };
 const ico = n => '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">' + (ICO[n] || '<circle cx="12" cy="12" r="3"/>') + '</svg>';
+Object.assign(ICO, {
+  descargar:'<path d="M12 4v12M7 11l5 5 5-5M4 20h16"/>',
+  subir:'<path d="M12 16V4M7 9l5-5 5 5M4 20h16"/>',
+  guardar:'<path d="M5 3h11l3 3v15H5z"/><path d="M8 3v5h7V3M8 21v-7h8v7"/>',
+  mas:'<path d="M12 5v14M5 12h14"/>',
+  papelera:'<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  buscar:'<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  editar:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',
+  candado:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>',
+  abierto:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 017.5-2"/>',
+  check:'<path d="M5 13l4 4L19 7"/>'
+});
+/* Pone un ícono delante de los botones según su texto (no toca boletas ni botones que ya traen ícono) */
+const REGLAS_ICONO = [[/^\+/, 'mas'], [/descargar|exportar/, 'descargar'], [/importar|subir|cargar/, 'subir'], [/guardar/, 'guardar'],
+  [/quitar|eliminar|borrar|vaciar/, 'papelera'], [/enviar/, 'enviar'], [/imprimir/, 'imprimir'], [/deshabilitar|^cerrar/, 'candado'],
+  [/^abrir/, 'abierto'], [/habilitar|aplicar|marcar como encargado/, 'check'], [/registrar|agregar|crear|asignar/, 'mas'],
+  [/completar|cambiar|editar|actualizar/, 'editar'], [/buscar|filtrar/, 'buscar']];
+function decorarBotones(){
+  document.querySelectorAll('#app button.btn:not([data-ic])').forEach(b => {
+    b.dataset.ic = '0';
+    if (b.querySelector('svg,img') || b.closest('.boleta') || b.matches('[data-n],#bt,#out')) return;
+    const t = (b.textContent || '').trim().toLowerCase(); if (!t) return;
+    const r = REGLAS_ICONO.find(x => x[0].test(t)); if (!r) return;
+    b.dataset.ic = '1';
+    const tn = [...b.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (tn) tn.textContent = tn.textContent.replace(/^\s*\+\s*/, '');
+    b.insertAdjacentHTML('afterbegin', ico(r[1]));
+  });
+}
+let _dec = 0;
+new MutationObserver(() => { if (_dec) return; _dec = requestAnimationFrame(() => { _dec = 0; decorarBotones(); }); }).observe(document.body, {childList:true, subtree:true});
 const esHabito = a => /^\s*h[aá]bitos/i.test(a.area || '');
 /* Grupos del año activo; un coordinador con grados asignados solo ve los suyos */
 const gruposAnio = cols => { const q = sb.from('grupos').select(cols).eq('anio_id', anio.id); return (perfil.rol === 'coordinador' && perfil.grados_ids && perfil.grados_ids.length) ? q.in('grado_id', perfil.grados_ids) : q; };
@@ -497,13 +538,13 @@ async function cargarTabla(grupo, asig, unidad){
   const ali = Object.fromEntries(al.data.map(a => [a.id, a]));
   const filas = ins.map(i => ({i, a:ali[i.alumno_id]})).filter(f => f.a)
     .sort((x, y) => (x.a.apellidos + x.a.nombres).localeCompare(y.a.apellidos + y.a.nombres));
-  const dis = bloqueada ? 'disabled' : '', nombreEv = e => NOM[e.tipo] + (e.tipo === 'examen' ? '' : ' ' + e.numero);
+  const dis = bloqueada ? 'disabled' : '', nombreEv = e => NOM[e.tipo] + (e.tipo === 'examen' ? '' : ' ' + e.numero), abrEv = e => e.tipo === 'examen' ? 'Examen' : ({corto:'C', actividad:'A'}[e.tipo] || NOM[e.tipo]) + e.numero;
   const rangos = ['90-100', '80-89', '70-79', '60-69', '50-59', '0-49'];
   T.innerHTML = `<div class="panel">${cerrada ? `<p class="aviso">Esta unidad está cerrada. ${dir ? 'Como dirección todavía puedes corregir.' : 'Ya no se pueden cambiar notas, solo verlas.'}</p>` : ''}
     <h3>${esc(asig.nombre)}</h3><p class="mut">${esc(grupo.nom)}, ${esc(grupo.grado.etiquetas_periodo[unidad - 1])}. ${esc(niv.nombre)}: cortos ${niv.peso_cortos}%, actividades ${niv.peso_actividades}%, examen ${niv.peso_examen} pts, PMA hasta ${niv.pma_max}.</p>
     ${bloqueada ? '' : `<div class="barra">${niv.peso_cortos > 0 ? '<button class="btn sec" data-t="corto">+ Corto</button>' : ''}<button class="btn sec" data-t="actividad">+ Actividad</button>${evs.some(e => e.tipo === 'examen') ? '' : '<button class="btn sec" data-t="examen">+ Examen</button>'}</div>`}
     ${evs.length ? '' : '<p class="aviso">Aún no hay columnas. Agrégalas con los botones y escribe las notas; el total se calcula solo.</p>'}
-    <div class="scroll"><table class="n"><thead><tr><th>No.</th><th>Alumno</th>${evs.map(e => `<th class="ev" data-e="${e.id}" title="${dir ? 'Clic para cambiar el sobre cuánto o borrar la columna' : 'Clic para cambiar el sobre cuánto'}">${nombreEv(e)}<small>/${+e.valor_maximo}</small>${dir && e.tipo !== 'examen' ? `<button type="button" class="deleva" data-del="${e.id}" title="Eliminar esta columna" aria-label="Eliminar ${esc(nombreEv(e))}">🗑️ Quitar</button>` : ''}</th>`).join('')}<th>Zona<small>/40</small></th><th>PMA<small>/${niv.pma_max}</small></th><th>Total<small>/100</small></th></tr></thead><tbody>
+    <div class="scroll"><table class="n"><thead><tr><th>No.</th><th>Alumno</th>${evs.map(e => `<th class="ev" data-e="${e.id}" title="${esc(nombreEv(e))}. ${dir ? 'Clic para cambiar el sobre cuánto o borrar la columna' : 'Clic para cambiar el sobre cuánto'}">${abrEv(e)}<small>/${+e.valor_maximo}</small>${dir && e.tipo !== 'examen' ? `<button type="button" class="deleva" data-del="${e.id}" title="Eliminar esta columna" aria-label="Eliminar ${esc(nombreEv(e))}">${ico('papelera')}</button>` : ''}</th>`).join('')}<th>Zona<small>/40</small></th><th>PMA<small>/${niv.pma_max}</small></th><th>Total<small>/100</small></th></tr></thead><tbody>
     ${filas.map(({i, a}, n) => `<tr data-i="${i.id}"><td>${n + 1}</td><td>${esc(a.apellidos)}, ${esc(a.nombres)}</td>${evs.map(e => { const v = C[e.id + ':' + i.id] ?? ''; return `<td><input class="nota" data-e="${e.id}" data-i="${i.id}" data-o="${v}" value="${v}" inputmode="decimal" aria-label="${esc(nombreEv(e))}, ${esc(a.nombres)} ${esc(a.apellidos)}" ${dis}></td>`; }).join('')}<td class="z">0</td><td><input class="nota pma" data-i="${i.id}" data-o="${P[i.id] ?? ''}" value="${P[i.id] ?? ''}" inputmode="decimal" aria-label="PMA, ${esc(a.nombres)} ${esc(a.apellidos)}" ${dis}></td><td class="t">0</td></tr>`).join('')}</tbody></table></div></div>
     <div class="panel"><h3>Estadística</h3><div class="scroll"><table class="est"><thead><tr>${rangos.map(r => `<th>${r}</th>`).join('')}</tr></thead><tbody><tr>${rangos.map((r, k) => `<td id="e${k}">0</td>`).join('')}</tr></tbody></table></div></div>`;
 
