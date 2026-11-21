@@ -188,6 +188,47 @@ select,input[type=email],input[type=password],input.busca,input.txt{border:1.5px
   .btn{padding:.6rem .9rem}
 }
 .boleta.bn{background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='115'%20height='115'%20fill='none'%20stroke='%230e4f4b'%20stroke-opacity='.05'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M8%2022%2030%2012%2052%2022%2030%2032Z%20M17%2027v10c8%206%2022%206%2026%200V27'/%3E%3Cpath%20d='M74%2014%2088%2028%2066%2050%2058%2052%2060%2044Z%20M70%2022%2080%2032'/%3E%3Cpath%20d='M8%2074q12-7%2024%200v22q-12-7-24%200Z%20M32%2074q12-7%2024%200v22q-12-7-24%200Z'/%3E%3Ccircle%20cx='86'%20cy='84'%20r='3'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'%20transform='rotate(60%2086%2084)'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'%20transform='rotate(120%2086%2084)'/%3E%3Cpath%20d='M52%20100h8M50%20104h12M56%2088v5M47%2096c-6-6-4-14%203-17%205-2%2010%200%2012%205%202%205%200%209-4%2012'/%3E%3C/svg%3E");background-size:1.15in}
+
+/* Usuarios: aspecto minimalista (20-nov) */
+.gsel{display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin:.5rem 0}
+.lnk{border:0;background:none;color:var(--g3);font-weight:600;font-size:.9rem;padding:.1rem 0;cursor:pointer}
+.lnk:hover{text-decoration:underline}
+.usr .usr-top{margin:0 0 1rem}.usr .usr-top h2{font-size:1.5rem;margin:0}.usr .usr-top p{margin:.15rem 0 0}
+.usr .panel{box-shadow:none;border:1px solid var(--line);padding:1.4rem 1.6rem}
+.usr .panel>h2:first-child,.usr .panel>h3:first-child{margin:0 0 .8rem;padding:0;background:none;color:var(--ink);font-size:1.05rem}
+.usr-new summary{cursor:pointer;font-weight:600;color:var(--deep);list-style:none;display:flex;align-items:center;gap:.6rem}
+.usr-new summary::-webkit-details-marker{display:none}
+.usr-new summary::before{content:"+";display:grid;place-items:center;width:1.6rem;height:1.6rem;border-radius:50%;background:var(--mint);font-weight:700;line-height:1}
+.usr-new[open] summary::before{content:"\2013"}
+.usr-new[open] summary{margin-bottom:.9rem}
+.usr-help{font-size:.9rem;margin:0 0 1.1rem}
+.usr-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1.2rem}
+.usr-sub{margin:1.3rem 0 .3rem;font-weight:600;font-size:.92rem}
+.usr #ua{margin-top:1.3rem}
+.usr .barra{gap:.4rem;margin:.4rem 0}
+.usr .barra .btn{min-height:2rem;padding:.15rem .85rem;font-size:.85rem;border-radius:99px;font-weight:500}
+.usr .barra .btn.sec{border:1px solid var(--line);color:var(--mut);background:#fff}
+.usr .barra .btn.sec:hover{border-color:var(--g3);color:var(--deep)}
+.usr .gsel{display:grid;grid-template-columns:repeat(auto-fill,minmax(9.5rem,1fr));gap:.45rem 1rem}
+.usr .gsel label{font-weight:400;font-size:.92rem}
+.usr table{border-collapse:collapse}
+.usr th{border-bottom:1px solid var(--line);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);font-weight:600;padding:.4rem .8rem}
+.usr td{padding:.85rem .8rem;border-bottom:1px solid #edf2f1;vertical-align:middle}
+.usr tbody tr:nth-child(even) td{background:none}
+.usr tbody tr:last-child td{border-bottom:0}
+.usr td b{display:block;font-weight:600}
+.usr td small{display:block;font-size:.85rem}
+.usr td select{min-height:2.2rem;border-color:transparent;background:transparent;padding:.3rem .4rem}
+.usr td select:hover,.usr td select:focus{border-color:var(--line);background:#fff}
+.usr .gr{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:16rem;color:var(--mut);font-size:.9rem}
+.usr .tag{border:0;cursor:pointer;font-size:.8rem;padding:.15rem .75rem}
+@media(max-width:760px){
+  .usr-form{grid-template-columns:1fr}.usr .panel{padding:1rem}
+  .usr table,.usr tbody,.usr tr,.usr td{display:block}.usr thead{display:none}
+  .usr tr{padding:.7rem 0;border-bottom:1px solid #edf2f1}.usr tbody tr:last-child{border-bottom:0}
+  .usr td{border:0;padding:.2rem 0}
+  .usr td[data-l]::before{content:attr(data-l);display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--mut)}
+}
 /* Firma y emoji flotantes en la esquina de la pantalla */
 #app:has(.fm) .wrap{padding-bottom:6rem}
 .fm{position:fixed;right:20px;bottom:14px;z-index:50;display:flex;align-items:center;gap:8px;pointer-events:none}
@@ -198,7 +239,6 @@ select,input[type=email],input[type=password],input.busca,input.txt{border:1.5px
 @keyframes fme{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6px) rotate(-5deg)}60%{transform:translateY(0) rotate(4deg)}80%{transform:translateY(-3px) rotate(0)}}
 @keyframes fms{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
 @keyframes fmg{0%,80%,100%{filter:drop-shadow(0 0 0 rgba(17,121,114,0))}90%{filter:drop-shadow(0 0 7px rgba(17,121,114,.6))}}
-body:has(.boleta) .fm{display:none}
 @media(max-width:700px){.fm-e{height:44px}.fm-s{width:100px}}
 @media print{.fm{display:none!important}}
 @media(prefers-reduced-motion:reduce){.lp,.fm-e,.fm-sw,.fm-s{animation:none}}
@@ -680,7 +720,7 @@ async function vistaUnidades(){
 /* Casillas de grados con atajos por nivel. Sin marcar = todos los grados. Devuelve una función que da los ids marcados. */
 function selGrados(host, sel, g, nv){
   host.innerHTML = `<div class="barra">${nv.map(x => `<button type="button" class="btn sec" data-n="${x.id}">${esc(x.nombre)}</button>`).join('')}<button type="button" class="btn sec" data-n="0">Todos (quitar marcas)</button></div>
-    <div style="display:flex;flex-wrap:wrap;gap:.35rem 1rem;margin:.5rem 0">${g.map(x => `<label style="display:inline-flex;align-items:center;gap:.3rem"><input type="checkbox" value="${x.id}" ${sel.includes(x.id) ? 'checked' : ''}> ${esc(x.nombre)}</label>`).join('')}</div>`;
+    <div class="gsel">${g.map(x => `<label style="display:inline-flex;align-items:center;gap:.3rem"><input type="checkbox" value="${x.id}" ${sel.includes(x.id) ? 'checked' : ''}> ${esc(x.nombre)}</label>`).join('')}</div>`;
   host.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => host.querySelectorAll('input').forEach(i => { const gr = g.find(x => String(x.id) === i.value); i.checked = b.dataset.n !== '0' && String(gr.nivel_id) === b.dataset.n; }));
   return () => [...host.querySelectorAll('input:checked')].map(i => +i.value);
 }
@@ -691,13 +731,15 @@ async function vistaUsuarios(){
   const [{data, error}, {data:g0}, {data:nv0}] = await Promise.all([sb.rpc('lista_usuarios'), sb.from('grados').select('id,nombre,orden,nivel_id').order('orden'), sb.from('niveles').select('id,nombre').order('id')]);
   if (error){ M.innerHTML = `<p class="err">${esc(traducir(error))}</p>`; return; }
   const opc = (sel) => Object.entries(ROLES).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${v}</option>`).join('');
-  M.innerHTML = `<div class="panel"><h2>Usuarios</h2>
-    <p class="mut">Para agregar a alguien: 1) créalo en Supabase (Authentication, Users, Add user, con correo y contraseña, marcando Auto Confirm User); 2) regístralo aquí con el mismo correo.</p>
-    <div class="sel"><label>Correo<input class="txt" id="uc"></label><label>Nombres<input class="txt" id="un"></label><label>Apellidos<input class="txt" id="up"></label><label>Rol<select id="ur">${opc('docente')}</select></label></div>
-    <p class="mut">Grados que atiende (coordinadores y docentes). Sin marcar = todos los grados.</p><div id="ugn"></div>
-    <button class="btn pie" id="ua">Registrar usuario</button></div>
-    <div class="panel"><h3>${data.length} usuario(s)</h3><div class="scroll"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Grados</th><th>Módulos</th><th>Estado</th></tr></thead><tbody>
-    ${data.map(u => `<tr><td>${esc(u.apellidos)}, ${esc(u.nombres)}</td><td>${esc(u.correo)}</td><td><select data-r="${u.id}">${opc(u.rol)}</select></td><td>${esc(resumenGrados(u.grados_ids, g0))} <button class="btn sec" data-g="${u.id}">Cambiar</button></td><td><button class="btn sec" data-p="${u.id}">Permisos</button></td><td><button class="tag ${u.activo ? 'ok' : 'mal'}" style="border:0;cursor:pointer" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`).join('')}</tbody></table></div></div><div id="ugp"></div>`;
+  M.innerHTML = `<div class="usr">
+    <div class="usr-top"><h2>Usuarios</h2><p class="mut">${data.length} usuario(s) registrado(s)</p></div>
+    <details class="panel usr-new"><summary>Registrar usuario nuevo</summary>
+      <p class="mut usr-help">Primero créalo en Supabase (Authentication, Users, Add user, con correo y contraseña, marcando Auto Confirm User) y luego regístralo aquí con el mismo correo.</p>
+      <div class="usr-form"><label>Correo<input class="txt" id="uc"></label><label>Rol<select id="ur">${opc('docente')}</select></label><label>Nombres<input class="txt" id="un"></label><label>Apellidos<input class="txt" id="up"></label></div>
+      <p class="usr-sub">Grados que atiende <span class="mut">(sin marcar = todos los grados)</span></p><div id="ugn"></div>
+      <button class="btn" id="ua">Registrar usuario</button></details>
+    <div class="panel"><div class="scroll"><table><thead><tr><th>Nombre</th><th>Rol</th><th>Grados</th><th>Módulos</th><th>Estado</th></tr></thead><tbody>
+    ${data.map(u => { const rg = resumenGrados(u.grados_ids, g0); return `<tr><td><b>${esc(u.apellidos)}, ${esc(u.nombres)}</b><small class="mut">${esc(u.correo)}</small></td><td data-l="Rol"><select data-r="${u.id}">${opc(u.rol)}</select></td><td data-l="Grados"><span class="gr" title="${esc(rg)}">${esc(rg)}</span><button class="lnk" data-g="${u.id}">Cambiar</button></td><td data-l="Módulos"><button class="lnk" data-p="${u.id}">Permisos</button></td><td data-l="Estado"><button class="tag ${u.activo ? 'ok' : 'mal'}" data-a="${u.id}">${u.activo ? 'Activo' : 'Inactivo'}</button></td></tr>`; }).join('')}</tbody></table></div></div><div id="ugp"></div></div>`;
   const getNuevos = selGrados($('#ugn'), [], g0, nv0);
   $('#ua').onclick = async () => {
     const v = id => $('#' + id).value.trim();
