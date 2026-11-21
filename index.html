@@ -162,10 +162,35 @@ select,input[type=email],input[type=password],input.busca,input.txt{border:1.5px
 .ing-r form p{margin:0}
 .ing-r form .err{text-align:center}
 @media(max-width:760px){.ing{grid-template-columns:1fr}.ing-l{padding:2rem 1.5rem;gap:1.2rem}.ing-l h1{font-size:1.8rem;margin:0}.ing-l p,.ing-l small{display:none}.ing-logo{width:90px}.ing-r{padding:1.5rem 1rem 6rem}}
-/* Firma y emoji en la esquina inferior derecha de cada pantalla */
-#app:has(.fm){position:relative;min-height:100vh}
+/* Responsive (20-nov): menú en íconos en pantallas medianas, encabezado e ingreso compactos */
+@media(max-width:1100px) and (min-width:761px){
+  .wrap{grid-template-columns:4.4rem 1fr;gap:1.2rem}
+  nav .et,nav i{display:none}
+  nav button{justify-content:center;padding:.5rem}
+  .nav-toggle{display:none}
+  .ing-l{padding:3rem}.ing-l h1{font-size:2.2rem}
+}
+@media(max-width:760px){
+  .wrap.mini{grid-template-columns:1fr}
+  .wrap.mini nav .et{display:inline}
+  main,.panel{min-width:0}
+  .panel{padding:1rem}
+  .panel>h2:first-child,.panel>h3:first-child{margin:-1rem -1rem .8rem}
+}
+@media(max-width:560px){
+  .tit small,.user span{display:none}
+  header.top{gap:.6rem}
+  .tit{min-width:0}
+  .user{flex-wrap:nowrap;gap:.5rem}
+  .user em{font-size:.72rem;padding:.05rem .5rem}
+  .tit b{font-size:.95rem}
+  .ing-r form{padding:1.6rem}
+  .btn{padding:.6rem .9rem}
+}
+.boleta.bn{background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='115'%20height='115'%20fill='none'%20stroke='%230e4f4b'%20stroke-opacity='.05'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M8%2022%2030%2012%2052%2022%2030%2032Z%20M17%2027v10c8%206%2022%206%2026%200V27'/%3E%3Cpath%20d='M74%2014%2088%2028%2066%2050%2058%2052%2060%2044Z%20M70%2022%2080%2032'/%3E%3Cpath%20d='M8%2074q12-7%2024%200v22q-12-7-24%200Z%20M32%2074q12-7%2024%200v22q-12-7-24%200Z'/%3E%3Ccircle%20cx='86'%20cy='84'%20r='3'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'%20transform='rotate(60%2086%2084)'/%3E%3Cellipse%20cx='86'%20cy='84'%20rx='17'%20ry='6'%20transform='rotate(120%2086%2084)'/%3E%3Cpath%20d='M52%20100h8M50%20104h12M56%2088v5M47%2096c-6-6-4-14%203-17%205-2%2010%200%2012%205%202%205%200%209-4%2012'/%3E%3C/svg%3E");background-size:1.15in}
+/* Firma y emoji flotantes en la esquina de la pantalla */
 #app:has(.fm) .wrap{padding-bottom:6rem}
-.fm{position:absolute;right:20px;bottom:14px;z-index:5;display:flex;align-items:center;gap:8px;pointer-events:none}
+.fm{position:fixed;right:20px;bottom:14px;z-index:50;display:flex;align-items:center;gap:8px;pointer-events:none}
 .fm img{display:block}
 .fm-e{height:60px;width:auto;transform-origin:50% 90%;animation:fme 4.5s ease-in-out infinite}
 .fm-sw{animation:fmg 7s ease-in-out 3s infinite}
